@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Jamf Auto Refresh (Toggle + Timer, Draggable Top-Right)
 // @namespace    Charlie Chimp
-// @version      1.2.0
+// @version      1.3.0
 // @author       BetterCallSaul <sherman@atlassian.com>
-// @description  Automatically refreshes the current page every 3 minutes with an on-page toggle and countdown timer. Panel sits top-right and is draggable.
+// @description  Automatically refreshes the current page at a user-selectable interval with an on-page toggle and countdown timer. Panel sits top-right, is draggable, and remembers its position and settings.
 // @match        https://pke.atlassian.com/
 // @grant        none
 // @run-at       document-idle
@@ -19,18 +19,28 @@
   }
   window.__ccAutoRefreshLoaded = true;
 
-  const REFRESH_INTERVAL_MS = 1 * 60 * 1000; // 1 minutes
+  const REFRESH_INTERVAL_MS = 1 * 60 * 1000; // default 1 minute
   const DELAY_WHILE_TYPING_MS = 10 * 1000;   // Delay if user is typing when refresh would occur
   const STORAGE_KEY_ENABLED = 'cc_auto_refresh_enabled:' + location.host;
   const STORAGE_KEY_POS = 'cc_auto_refresh_pos:' + location.host;
+const STORAGE_KEY_INTERVAL = 'cc_auto_refresh_interval_ms:' + location.host;
+const MIN_REFRESH_MS = 5 * 1000;          // 5 seconds minimum for safety
+const MAX_REFRESH_MS = 12 * 60 * 60 * 1000; // 12 hours max
+
+// Load refresh interval from storage or use default
+let refreshIntervalMs = (() => {
+  const raw = parseInt(localStorage.getItem(STORAGE_KEY_INTERVAL) || '', 10);
+  const v = Number.isFinite(raw) ? raw : REFRESH_INTERVAL_MS;
+  return Math.max(MIN_REFRESH_MS, Math.min(MAX_REFRESH_MS, v));
+})();
 
   let enabled = (() => {
     const raw = localStorage.getItem(STORAGE_KEY_ENABLED);
     return raw === null ? true : raw === 'true';
   })();
 
-  let nextRefreshAt = enabled ? Date.now() + REFRESH_INTERVAL_MS : null;
-  let ui, panel, handle, toggleBtn, countdownEl, statusEl, tickTimer;
+  let nextRefreshAt = enabled ? Date.now() + refreshIntervalMs : null;
+  let ui, panel, handle, toggleBtn, countdownEl, statusEl, tickTimer, intervalLabel, intervalSelect, intervalRow;
 
   function formatTime(ms) {
     if (ms < 0) ms = 0;
@@ -50,7 +60,7 @@
     return a.isContentEditable || isFormField;
   }
 
-  function scheduleNext(ms = REFRESH_INTERVAL_MS) {
+  function scheduleNext(ms = refreshIntervalMs) {
     nextRefreshAt = Date.now() + ms;
   }
 
@@ -155,6 +165,57 @@
       updateUI();
     });
 
+    // Interval picker row
+    intervalRow = document.createElement('div');
+    intervalRow.style.display = 'flex';
+    intervalRow.style.alignItems = 'center';
+    intervalRow.style.gap = '8px';
+    intervalRow.style.marginTop = '8px';
+
+    intervalLabel = document.createElement('label');
+    intervalLabel.textContent = 'Refresh every:';
+    intervalLabel.style.opacity = '0.9';
+
+    intervalSelect = document.createElement('select');
+    intervalSelect.style.flex = '0 0 auto';
+    intervalSelect.style.padding = '4px 6px';
+    intervalSelect.style.borderRadius = '6px';
+    intervalSelect.style.border = '1px solid rgba(255,255,255,0.2)';
+    intervalSelect.style.background = '#0b1220';
+    intervalSelect.style.color = '#f8fafc';
+
+    const options = [
+      { label: '15 sec', value: 15 * 1000 },
+      { label: '30 sec', value: 30 * 1000 },
+      { label: '1 min', value: 1 * 60 * 1000 },
+      { label: '2 min', value: 2 * 60 * 1000 },
+      { label: '3 min', value: 3 * 60 * 1000 },
+      { label: '5 min', value: 5 * 60 * 1000 },
+      { label: '10 min', value: 10 * 60 * 1000 },
+      { label: '15 min', value: 15 * 60 * 1000 },
+      { label: '30 min', value: 30 * 60 * 1000 },
+    ];
+    options.forEach(opt => {
+      const o = document.createElement('option');
+      o.text = opt.label;
+      o.value = String(opt.value);
+      if (opt.value === refreshIntervalMs) o.selected = true;
+      intervalSelect.add(o);
+    });
+
+    intervalSelect.addEventListener('change', () => {
+      const val = parseInt(intervalSelect.value, 10);
+      if (Number.isFinite(val)) {
+        refreshIntervalMs = Math.max(MIN_REFRESH_MS, Math.min(MAX_REFRESH_MS, val));
+        localStorage.setItem(STORAGE_KEY_INTERVAL, String(refreshIntervalMs));
+        if (enabled) scheduleNext(refreshIntervalMs);
+        updateUI();
+      }
+    });
+
+    intervalRow.appendChild(intervalLabel);
+    intervalRow.appendChild(intervalSelect);
+
     countdownEl = document.createElement('div');
     countdownEl.style.marginTop = '8px';
 
@@ -164,6 +225,7 @@
 
     panel.appendChild(handle);
     panel.appendChild(toggleBtn);
+    panel.appendChild(intervalRow);
     panel.appendChild(countdownEl);
     panel.appendChild(statusEl);
     ui.appendChild(panel);
