@@ -55,8 +55,7 @@
   let isDropdownOpen = false;
   let statusMessage = null;
   let sessionRefreshCount = 0; // Track refreshes this session
-  let isTabVisible = !document.hidden; // Track tab visibility
-  let pausedAt = null; // Track when tab was hidden
+  let lastRefreshTime = null; // Track last refresh timestamp
 
   function formatTime(ms) {
     if (ms < 0) ms = 0;
@@ -78,6 +77,20 @@
     const whole = Math.floor(minutes);
     const remainderSec = totalSec - whole * 60;
     return `${whole} min ${remainderSec} sec`;
+  }
+
+  function formatTimeAgo(ms) {
+    const seconds = Math.floor(ms / 1000);
+    if (seconds < 60) return `${seconds} sec ago`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes} min ago`;
+    const hours = Math.floor(minutes / 60);
+    const remainingMins = minutes % 60;
+    if (hours < 24) {
+      return remainingMins > 0 ? `${hours}h ${remainingMins}m ago` : `${hours}h ago`;
+    }
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
   }
 
   function isUserTyping() {
@@ -351,6 +364,15 @@
     sessionCounterEl.textContent = `Refreshed ${sessionRefreshCount} times this session`;
     statusRow.appendChild(sessionCounterEl);
 
+    // Last refresh timestamp display
+    const lastRefreshEl = document.createElement('div');
+    lastRefreshEl.className = 'refresh-last-timestamp';
+    lastRefreshEl.style.fontSize = '11px';
+    lastRefreshEl.style.opacity = '0.7';
+    lastRefreshEl.style.marginTop = '2px';
+    lastRefreshEl.textContent = lastRefreshTime ? `Last refreshed: ${formatTimeAgo(Date.now() - lastRefreshTime)}` : 'No refresh yet';
+    statusRow.appendChild(lastRefreshEl);
+
     dropdownTimerBadge = document.createElement('span');
     dropdownTimerBadge.className = 'refresh-timer-badge refresh-timer-dropdown';
     dropdownTimerBadge.style.marginLeft = '8px';
@@ -392,6 +414,7 @@
     });
     refreshNowBtn.addEventListener('click', () => {
       sessionRefreshCount++;
+      lastRefreshTime = Date.now();
       window.location.reload();
     });
 
@@ -483,8 +506,9 @@
     refreshDropdown.appendChild(toggleBtn);
     refreshDropdown.appendChild(intervalRow);
 
-    // Store reference to session counter for updates
+    // Store references for updates
     window.__ccRefreshSessionCounter = sessionCounterEl;
+    window.__ccRefreshLastTimestamp = lastRefreshEl;
     
     // Click handler for icon
     refreshIcon.addEventListener('click', toggleDropdown);
@@ -547,34 +571,17 @@
       return;
     }
 
-    // Check if tab is hidden - pause countdown
-    if (document.hidden) {
-      if (isTabVisible) {
-        // Tab just became hidden
-        isTabVisible = false;
-        pausedAt = Date.now();
-        statusMessage = '⏸️ Paused (tab hidden)';
-        updateUI();
-      }
-      return;
-    } else if (!isTabVisible) {
-      // Tab just became visible again
-      isTabVisible = true;
-      if (pausedAt && nextRefreshAt) {
-        // Extend the timer by the duration tab was hidden
-        const pauseDuration = Date.now() - pausedAt;
-        nextRefreshAt += pauseDuration;
-      }
-      pausedAt = null;
-      statusMessage = null;
-    }
-
     if (!nextRefreshAt) {
       scheduleNext();
     }
 
     const now = Date.now();
     const remaining = nextRefreshAt - now;
+
+    // Update last refresh timestamp display if it exists
+    if (window.__ccRefreshLastTimestamp && lastRefreshTime) {
+      window.__ccRefreshLastTimestamp.textContent = `Last refreshed: ${formatTimeAgo(now - lastRefreshTime)}`;
+    }
 
     if (remaining <= 0) {
       if (isUserTyping()) {
@@ -585,9 +592,13 @@
         statusMessage = null;
         updateUI();
         sessionRefreshCount++;
-        // Update session counter if element exists
+        lastRefreshTime = Date.now();
+        // Update session counter and last refresh if elements exist
         if (window.__ccRefreshSessionCounter) {
           window.__ccRefreshSessionCounter.textContent = `Refreshed ${sessionRefreshCount} times this session`;
+        }
+        if (window.__ccRefreshLastTimestamp) {
+          window.__ccRefreshLastTimestamp.textContent = `Last refreshed: just now`;
         }
         window.location.reload();
         return; // In case reload is blocked for some reason
