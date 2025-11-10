@@ -1,3 +1,24 @@
 # jamf-auto-refresh
 
 A userscript that adds a draggable auto-refresh control to Jamf pages, with a user-selectable interval and countdown.
+
+## Features
+
+- 🔄 **Manual Refresh Button** - Instantly refresh the page without waiting for the timer
+- ⏸️ **Smart Tab Detection** - Automatically pauses when tab is hidden, resumes when visible
+- 📊 **Session Counter** - Tracks how many times the page has refreshed in the current session
+- ⏱️ **Customizable Intervals** - Choose from 15 seconds to 30 minutes
+- 🎯 **Typing Detection** - Delays refresh when actively typing in forms
+- 💾 **Persistent Settings** - Remembers your preferences per hostname
+- 🔔 **Visual Countdown** - Shows remaining time before next refresh
+
+## Version History
+
+### v1.5.0 (Latest)
+- ✨ Added "Refresh Now" button for manual page refresh
+- ✨ Added tab visibility detection - pauses countdown when tab is hidden
+- ✨ Added session refresh counter to track automatic refreshes
+- 🐛 Improved timer accuracy when switching between tabs
+
+### v1.4.0
+- Previous stable release
