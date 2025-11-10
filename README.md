@@ -16,7 +16,16 @@ A userscript that adds an auto-refresh widget to the Jamf Pro sidebar, with a us
 
 ## Version History
 
-### v1.6.0 (Latest)
+### v1.7.0 (Latest)
+- 🎯 **Perfect Native Integration** - Widget now perfectly mimics Jamf's native sidebar items
+- ✨ Uses exact styling from native items (padding: 8px, height: 28px, gap: 12px)
+- ✨ Matches native icon styling with proper SVG refresh icon
+- ✨ Inserts as direct child of `jamf-nav-side-container` like native items
+- ✨ Proper hover effects matching native behavior
+- 🔧 Removed shadow DOM detection (not needed - Jamf uses regular DOM)
+- 🔧 Simplified sidebar detection to target `jamf-nav-side-container` directly
+
+### v1.6.0
 - 🎨 **Major UI Overhaul** - Moved from top navigation to sidebar for better integration
 - ✨ Added full-width sidebar widget with icon, label, and countdown badge
 - ✨ Dropdown now appears to the right of the widget (sidebar-friendly)
