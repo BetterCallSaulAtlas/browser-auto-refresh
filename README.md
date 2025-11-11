@@ -25,12 +25,20 @@ A userscript that adds a draggable floating auto-refresh widget to Jamf Pro, wit
    - **Safari**: [Userscripts](https://apps.apple.com/app/userscripts/id1463298887)
 
 2. Install the script:
-   - [Download from GitHub Releases](https://github.com/BetterCallSaulAtlas/jamf-auto-refresh/releases/latest)
+   - **Direct Install** (Recommended): [Click here to install](https://raw.githubusercontent.com/BetterCallSaulAtlas/jamf-auto-refresh/main/jamf_auto_refresh.js)
+   - Or [download from GitHub Releases](https://github.com/BetterCallSaulAtlas/jamf-auto-refresh/releases/latest)
    - Or copy the contents of `jamf_auto_refresh.js` and create a new script in your userscript manager
 
 3. Navigate to your Jamf Pro instance (e.g., `https://pke.atlassian.com/*` or `https://atlassian.jamfcloud.com/*`)
 
 4. The floating widget will appear in the bottom-left corner (you can drag it anywhere)
+
+### Automatic Updates
+The script automatically checks for updates daily. Your userscript manager will notify you when a new version is available.
+
+To manually check for updates:
+- **Tampermonkey**: Click the extension icon → Dashboard → Click the script name → Check for updates
+- **Greasemonkey**: Click the extension icon → User Scripts → Click the script → Check for updates
 
 ## Usage
 
