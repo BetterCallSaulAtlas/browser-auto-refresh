@@ -6,6 +6,10 @@
 // @description  Automatically refreshes the current page at a user-selectable interval with draggable floating window and countdown timer.
 // @match        https://pke.atlassian.com/*
 // @match        https://atlassian.jamfcloud.com/*
+// @updateURL    https://raw.githubusercontent.com/BetterCallSaulAtlas/jamf-auto-refresh/main/jamf_auto_refresh.js
+// @downloadURL  https://raw.githubusercontent.com/BetterCallSaulAtlas/jamf-auto-refresh/main/jamf_auto_refresh.js
+// @supportURL   https://github.com/BetterCallSaulAtlas/jamf-auto-refresh/issues
+// @homepageURL  https://github.com/BetterCallSaulAtlas/jamf-auto-refresh
 // @grant        none
 // @run-at       document-end
 // ==/UserScript==
