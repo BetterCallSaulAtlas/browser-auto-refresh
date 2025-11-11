@@ -515,6 +515,308 @@
     const domainList = document.createElement('div');
     domainList.style.marginBottom = '16px';
     
+    function buildAdvancedSettings(container, config, configIndex, allConfigs, rerenderCallback) {
+      container.innerHTML = '';
+      
+      // Custom Interval Section
+      const intervalSection = document.createElement('div');
+      intervalSection.style.marginBottom = '12px';
+      
+      const intervalLabel = document.createElement('div');
+      intervalLabel.textContent = '⏱️ Custom Interval:';
+      intervalLabel.style.fontSize = '12px';
+      intervalLabel.style.fontWeight = '600';
+      intervalLabel.style.marginBottom = '6px';
+      intervalLabel.style.color = '#cbd5e1';
+      
+      const intervalSelect = document.createElement('select');
+      intervalSelect.style.width = '100%';
+      intervalSelect.style.padding = '6px 8px';
+      intervalSelect.style.border = '1px solid rgba(255,255,255,0.2)';
+      intervalSelect.style.borderRadius = '6px';
+      intervalSelect.style.background = '#334155';
+      intervalSelect.style.color = '#f8fafc';
+      intervalSelect.style.fontSize = '12px';
+      intervalSelect.style.cursor = 'pointer';
+      
+      // Add "Use Global" option
+      const globalOption = document.createElement('option');
+      globalOption.value = 'null';
+      globalOption.text = 'Use Global Default';
+      globalOption.selected = !config.interval;
+      intervalSelect.add(globalOption);
+      
+      // Add interval options
+      INTERVAL_OPTIONS.forEach(opt => {
+        const optionEl = document.createElement('option');
+        optionEl.value = String(opt.value);
+        optionEl.text = opt.label;
+        if (config.interval === opt.value) {
+          optionEl.selected = true;
+        }
+        intervalSelect.add(optionEl);
+      });
+      
+      intervalSelect.addEventListener('change', () => {
+        const val = intervalSelect.value;
+        config.interval = val === 'null' ? null : parseInt(val, 10);
+        allConfigs[configIndex] = config;
+        saveDomainConfig(allConfigs);
+        domainConfigs = allConfigs;
+        rerenderCallback();
+      });
+      
+      intervalSection.appendChild(intervalLabel);
+      intervalSection.appendChild(intervalSelect);
+      
+      // Path Patterns Section
+      const pathSection = document.createElement('div');
+      pathSection.style.marginBottom = '12px';
+      
+      const pathLabel = document.createElement('div');
+      pathLabel.textContent = '📍 Path Patterns:';
+      pathLabel.style.fontSize = '12px';
+      pathLabel.style.fontWeight = '600';
+      pathLabel.style.marginBottom = '6px';
+      pathLabel.style.color = '#cbd5e1';
+      
+      // Include patterns
+      const includeLabel = document.createElement('div');
+      includeLabel.textContent = 'Include (matches these):';
+      includeLabel.style.fontSize = '11px';
+      includeLabel.style.marginBottom = '4px';
+      includeLabel.style.color = 'rgba(255,255,255,0.7)';
+      
+      const includeList = document.createElement('div');
+      includeList.style.marginBottom = '8px';
+      
+      const renderIncludeList = () => {
+        includeList.innerHTML = '';
+        config.paths.include.forEach((pattern, i) => {
+          const patternRow = document.createElement('div');
+          patternRow.style.display = 'flex';
+          patternRow.style.gap = '4px';
+          patternRow.style.marginBottom = '4px';
+          patternRow.style.alignItems = 'center';
+          
+          const patternText = document.createElement('span');
+          patternText.textContent = pattern;
+          patternText.style.flex = '1';
+          patternText.style.fontSize = '11px';
+          patternText.style.fontFamily = 'monospace';
+          patternText.style.padding = '4px 6px';
+          patternText.style.background = 'rgba(34,197,94,0.1)';
+          patternText.style.border = '1px solid rgba(34,197,94,0.3)';
+          patternText.style.borderRadius = '4px';
+          patternText.style.color = '#86efac';
+          
+          const removeBtn = document.createElement('button');
+          removeBtn.textContent = '✕';
+          removeBtn.style.background = 'transparent';
+          removeBtn.style.border = 'none';
+          removeBtn.style.color = '#ef4444';
+          removeBtn.style.cursor = 'pointer';
+          removeBtn.style.padding = '2px 6px';
+          removeBtn.style.fontSize = '14px';
+          removeBtn.addEventListener('click', () => {
+            if (config.paths.include.length > 1) {
+              config.paths.include.splice(i, 1);
+              allConfigs[configIndex] = config;
+              saveDomainConfig(allConfigs);
+              domainConfigs = allConfigs;
+              renderIncludeList();
+              rerenderCallback();
+            }
+          });
+          
+          patternRow.appendChild(patternText);
+          patternRow.appendChild(removeBtn);
+          includeList.appendChild(patternRow);
+        });
+      };
+      
+      renderIncludeList();
+      
+      const includeInput = document.createElement('input');
+      includeInput.type = 'text';
+      includeInput.placeholder = 'e.g., /computers* or regex:^/devices/.*';
+      includeInput.style.width = '100%';
+      includeInput.style.padding = '6px 8px';
+      includeInput.style.border = '1px solid rgba(255,255,255,0.2)';
+      includeInput.style.borderRadius = '4px';
+      includeInput.style.background = '#334155';
+      includeInput.style.color = '#f8fafc';
+      includeInput.style.fontSize = '11px';
+      includeInput.style.fontFamily = 'monospace';
+      includeInput.style.marginBottom = '4px';
+      includeInput.style.boxSizing = 'border-box';
+      
+      const includeAddBtn = document.createElement('button');
+      includeAddBtn.textContent = '+ Add Include';
+      includeAddBtn.style.padding = '4px 8px';
+      includeAddBtn.style.border = 'none';
+      includeAddBtn.style.borderRadius = '4px';
+      includeAddBtn.style.background = '#22c55e';
+      includeAddBtn.style.color = 'white';
+      includeAddBtn.style.cursor = 'pointer';
+      includeAddBtn.style.fontSize = '11px';
+      includeAddBtn.style.fontWeight = '600';
+      includeAddBtn.addEventListener('click', () => {
+        const pattern = includeInput.value.trim();
+        if (pattern) {
+          config.paths.include.push(pattern);
+          allConfigs[configIndex] = config;
+          saveDomainConfig(allConfigs);
+          domainConfigs = allConfigs;
+          includeInput.value = '';
+          renderIncludeList();
+          rerenderCallback();
+        }
+      });
+      
+      includeInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') includeAddBtn.click();
+      });
+      
+      // Exclude patterns
+      const excludeLabel = document.createElement('div');
+      excludeLabel.textContent = 'Exclude (blocks these):';
+      excludeLabel.style.fontSize = '11px';
+      excludeLabel.style.marginBottom = '4px';
+      excludeLabel.style.marginTop = '12px';
+      excludeLabel.style.color = 'rgba(255,255,255,0.7)';
+      
+      const excludeList = document.createElement('div');
+      excludeList.style.marginBottom = '8px';
+      
+      const renderExcludeList = () => {
+        excludeList.innerHTML = '';
+        if (config.paths.exclude.length === 0) {
+          const emptyMsg = document.createElement('div');
+          emptyMsg.textContent = 'No exclude patterns';
+          emptyMsg.style.fontSize = '11px';
+          emptyMsg.style.color = 'rgba(255,255,255,0.4)';
+          emptyMsg.style.fontStyle = 'italic';
+          emptyMsg.style.padding = '4px';
+          excludeList.appendChild(emptyMsg);
+          return;
+        }
+        
+        config.paths.exclude.forEach((pattern, i) => {
+          const patternRow = document.createElement('div');
+          patternRow.style.display = 'flex';
+          patternRow.style.gap = '4px';
+          patternRow.style.marginBottom = '4px';
+          patternRow.style.alignItems = 'center';
+          
+          const patternText = document.createElement('span');
+          patternText.textContent = pattern;
+          patternText.style.flex = '1';
+          patternText.style.fontSize = '11px';
+          patternText.style.fontFamily = 'monospace';
+          patternText.style.padding = '4px 6px';
+          patternText.style.background = 'rgba(239,68,68,0.1)';
+          patternText.style.border = '1px solid rgba(239,68,68,0.3)';
+          patternText.style.borderRadius = '4px';
+          patternText.style.color = '#fca5a5';
+          
+          const removeBtn = document.createElement('button');
+          removeBtn.textContent = '✕';
+          removeBtn.style.background = 'transparent';
+          removeBtn.style.border = 'none';
+          removeBtn.style.color = '#ef4444';
+          removeBtn.style.cursor = 'pointer';
+          removeBtn.style.padding = '2px 6px';
+          removeBtn.style.fontSize = '14px';
+          removeBtn.addEventListener('click', () => {
+            config.paths.exclude.splice(i, 1);
+            allConfigs[configIndex] = config;
+            saveDomainConfig(allConfigs);
+            domainConfigs = allConfigs;
+            renderExcludeList();
+            rerenderCallback();
+          });
+          
+          patternRow.appendChild(patternText);
+          patternRow.appendChild(removeBtn);
+          excludeList.appendChild(patternRow);
+        });
+      };
+      
+      renderExcludeList();
+      
+      const excludeInput = document.createElement('input');
+      excludeInput.type = 'text';
+      excludeInput.placeholder = 'e.g., /settings/* or regex:^/admin/.*';
+      excludeInput.style.width = '100%';
+      excludeInput.style.padding = '6px 8px';
+      excludeInput.style.border = '1px solid rgba(255,255,255,0.2)';
+      excludeInput.style.borderRadius = '4px';
+      excludeInput.style.background = '#334155';
+      excludeInput.style.color = '#f8fafc';
+      excludeInput.style.fontSize = '11px';
+      excludeInput.style.fontFamily = 'monospace';
+      excludeInput.style.marginBottom = '4px';
+      excludeInput.style.boxSizing = 'border-box';
+      
+      const excludeAddBtn = document.createElement('button');
+      excludeAddBtn.textContent = '+ Add Exclude';
+      excludeAddBtn.style.padding = '4px 8px';
+      excludeAddBtn.style.border = 'none';
+      excludeAddBtn.style.borderRadius = '4px';
+      excludeAddBtn.style.background = '#ef4444';
+      excludeAddBtn.style.color = 'white';
+      excludeAddBtn.style.cursor = 'pointer';
+      excludeAddBtn.style.fontSize = '11px';
+      excludeAddBtn.style.fontWeight = '600';
+      excludeAddBtn.addEventListener('click', () => {
+        const pattern = excludeInput.value.trim();
+        if (pattern) {
+          config.paths.exclude.push(pattern);
+          allConfigs[configIndex] = config;
+          saveDomainConfig(allConfigs);
+          domainConfigs = allConfigs;
+          excludeInput.value = '';
+          renderExcludeList();
+          rerenderCallback();
+        }
+      });
+      
+      excludeInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') excludeAddBtn.click();
+      });
+      
+      // Pattern help
+      const patternHelp = document.createElement('div');
+      patternHelp.style.fontSize = '10px';
+      patternHelp.style.color = 'rgba(255,255,255,0.5)';
+      patternHelp.style.marginTop = '8px';
+      patternHelp.style.padding = '6px';
+      patternHelp.style.background = 'rgba(255,255,255,0.03)';
+      patternHelp.style.borderRadius = '4px';
+      patternHelp.innerHTML = `
+        <strong>Pattern types:</strong><br>
+        • Glob: <code>/computers*</code>, <code>*/devices/*</code><br>
+        • Regex: <code>regex:^/computers/.*\\.html$</code>
+      `;
+      
+      // Assemble path section
+      pathSection.appendChild(pathLabel);
+      pathSection.appendChild(includeLabel);
+      pathSection.appendChild(includeList);
+      pathSection.appendChild(includeInput);
+      pathSection.appendChild(includeAddBtn);
+      pathSection.appendChild(excludeLabel);
+      pathSection.appendChild(excludeList);
+      pathSection.appendChild(excludeInput);
+      pathSection.appendChild(excludeAddBtn);
+      pathSection.appendChild(patternHelp);
+      
+      // Assemble container
+      container.appendChild(intervalSection);
+      container.appendChild(pathSection);
+    }
+    
     function renderDomainList() {
       domainList.innerHTML = '';
       const configs = loadDomainConfig();
@@ -627,7 +929,9 @@
         advancedPanel.style.padding = '12px';
         advancedPanel.style.borderTop = '1px solid rgba(255,255,255,0.1)';
         advancedPanel.style.background = 'rgba(0,0,0,0.2)';
-        advancedPanel.innerHTML = '<div style="font-size:12px;color:rgba(255,255,255,0.7);">⚡ Advanced settings coming soon in v2.1.0!</div>';
+        
+        // Build advanced settings UI
+        buildAdvancedSettings(advancedPanel, config, index, configs, renderDomainList);
         
         // Toggle expand/collapse
         let isExpanded = false;
