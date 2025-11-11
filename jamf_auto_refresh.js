@@ -226,9 +226,27 @@
 
   // Prevent duplicate instances more robustly
   const instanceId = 'cc-auto-refresh-nav';
-  if (window.__ccAutoRefreshLoaded || document.getElementById(instanceId)) {
+  
+  // Check if already loaded
+  if (window.__ccAutoRefreshLoaded) {
+    console.log('[Jamf Auto-Refresh] Already loaded, skipping initialization');
     return;
   }
+  
+  // Remove any existing widget (cleanup from previous navigation)
+  const existingWidget = document.getElementById(instanceId);
+  if (existingWidget) {
+    console.log('[Jamf Auto-Refresh] Removing existing widget from DOM');
+    existingWidget.remove();
+  }
+  
+  // Also remove any orphaned modals
+  document.querySelectorAll('div[style*="backdrop-filter: blur(4px)"]').forEach(el => {
+    if (el.style.position === 'fixed' && el.style.zIndex === '999999') {
+      el.remove();
+    }
+  });
+  
   window.__ccAutoRefreshLoaded = true;
 
   const REFRESH_INTERVAL_MS = 1 * 60 * 1000; // default 1 minute
