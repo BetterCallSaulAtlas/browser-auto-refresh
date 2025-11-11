@@ -19,15 +19,31 @@
   // ============================================================================
   // USER CONFIGURATION
   // ============================================================================
-  // Default domains if no configuration exists in localStorage.
+  // Default configuration if nothing exists in localStorage.
   // You can still edit this array, or use the visual Settings UI.
   //
-  // Examples:
-  //   - 'yourcompany.jamfcloud.com'           (matches only this domain)
-  //   - 'jamf.yourcompany.com'                (matches subdomain)
-  //   - '*jamfcloud.com'                      (matches any jamfcloud.com domain)
+  // Simple format (backward compatible):
+  //   '*.jamfcloud.com'
+  //
+  // Advanced format (new in v2.1.0):
+  //   {
+  //     domain: '*.jamfcloud.com',
+  //     interval: 60000,           // Custom refresh interval (ms), null = use global
+  //     paths: {
+  //       include: ['*'],          // Glob or regex patterns
+  //       exclude: []              // Exclude patterns (takes priority)
+  //     },
+  //     enabled: true
+  //   }
+  //
+  // Path pattern examples:
+  //   - '*' or ['*']                           All paths (default)
+  //   - '/computers.html'                      Exact path
+  //   - '/computers*'                          Starts with /computers
+  //   - '*/devices/*'                          Contains /devices/ anywhere
+  //   - 'regex:^/computers/.*\\.html$'         Regex pattern
 
-  const DEFAULT_ENABLED_DOMAINS = [
+  const DEFAULT_DOMAIN_CONFIG = [
     '*.jamfcloud.com'
   ];
 
@@ -38,24 +54,58 @@
   // Storage keys
   const STORAGE_KEY_DOMAINS = 'cc_auto_refresh_domains:' + location.host;
 
-  // Load domains from localStorage or use defaults
-  function loadEnabledDomains() {
+  // Normalize config entry to advanced format
+  function normalizeConfigEntry(entry) {
+    if (typeof entry === 'string') {
+      // Simple string format - convert to object
+      return {
+        domain: entry,
+        interval: null,
+        paths: { include: ['*'], exclude: [] },
+        enabled: true
+      };
+    }
+    // Already an object - ensure it has all properties
+    return {
+      domain: entry.domain || '',
+      interval: entry.interval || null,
+      paths: entry.paths || { include: ['*'], exclude: [] },
+      enabled: entry.enabled !== false
+    };
+  }
+
+  // Load domain configuration from localStorage or use defaults
+  function loadDomainConfig() {
     const stored = localStorage.getItem(STORAGE_KEY_DOMAINS);
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
-        return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_ENABLED_DOMAINS;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map(normalizeConfigEntry);
+        }
       } catch (e) {
         console.warn('[Jamf Auto-Refresh] Failed to parse stored domains, using defaults');
-        return DEFAULT_ENABLED_DOMAINS;
       }
     }
-    return DEFAULT_ENABLED_DOMAINS;
+    return DEFAULT_DOMAIN_CONFIG.map(normalizeConfigEntry);
   }
 
-  // Save domains to localStorage
+  // Save domain configuration to localStorage
+  function saveDomainConfig(configs) {
+    localStorage.setItem(STORAGE_KEY_DOMAINS, JSON.stringify(configs));
+  }
+
+  // Legacy support - load as simple domain array for backward compat with v2.0.0 code
+  function loadEnabledDomains() {
+    return loadDomainConfig().map(config => config.domain);
+  }
+
+  // Legacy support - save as config objects
   function saveEnabledDomains(domains) {
-    localStorage.setItem(STORAGE_KEY_DOMAINS, JSON.stringify(domains));
+    const configs = domains.map(domain => 
+      typeof domain === 'string' ? normalizeConfigEntry(domain) : domain
+    );
+    saveDomainConfig(configs);
   }
 
   // Check if a hostname matches a domain pattern
@@ -67,19 +117,102 @@
     return hostname === cleanPattern || hostname.endsWith('.' + cleanPattern);
   }
 
-  // Check if current domain matches any enabled domain
-  const currentHostname = window.location.hostname;
-  let enabledDomains = loadEnabledDomains();
-  const isEnabled = enabledDomains.some(domain => matchesDomainPattern(currentHostname, domain));
+  // Check if a path matches a pattern (glob or regex)
+  function matchesPathPattern(currentPath, pattern) {
+    // Regex pattern (starts with "regex:")
+    if (pattern.startsWith('regex:')) {
+      try {
+        const regexStr = pattern.substring(6);
+        const regex = new RegExp(regexStr);
+        return regex.test(currentPath);
+      } catch (e) {
+        console.warn('[Jamf Auto-Refresh] Invalid regex pattern:', pattern, e);
+        return false;
+      }
+    }
+    
+    // Glob pattern
+    // Convert glob to regex: * = [^/]*, ** = .*, ? = .
+    const regexPattern = pattern
+      .replace(/\*\*/g, '<!DOUBLESTAR!>')  // Temporarily replace **
+      .replace(/\*/g, '[^/]*')              // * matches anything except /
+      .replace(/<!DOUBLESTAR!>/g, '.*')     // ** matches anything including /
+      .replace(/\?/g, '.')                  // ? matches single char
+      .replace(/\./g, '\\.');               // Escape literal dots
+    
+    try {
+      const regex = new RegExp(`^${regexPattern}$`);
+      return regex.test(currentPath);
+    } catch (e) {
+      console.warn('[Jamf Auto-Refresh] Invalid glob pattern:', pattern, e);
+      return false;
+    }
+  }
 
-  // Exit early if not on an enabled domain
-  if (!isEnabled) {
-    console.log('[Jamf Auto-Refresh] Script disabled for this domain:', currentHostname);
-    console.log('[Jamf Auto-Refresh] Enabled domains:', enabledDomains);
+  // Check if current path matches the path configuration
+  function matchesPathConfig(currentPath, pathConfig) {
+    if (!pathConfig) {
+      return true; // No path config = match all
+    }
+    
+    const include = pathConfig.include || ['*'];
+    const exclude = pathConfig.exclude || [];
+    
+    // Check exclude patterns first (they take priority)
+    for (const pattern of exclude) {
+      if (matchesPathPattern(currentPath, pattern)) {
+        return false;
+      }
+    }
+    
+    // Check include patterns
+    for (const pattern of include) {
+      if (matchesPathPattern(currentPath, pattern)) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
+  // Find the first matching config for current URL
+  function findMatchingConfig(hostname, pathname, configs) {
+    for (const config of configs) {
+      if (!config.enabled) continue;
+      
+      // Check domain
+      if (!matchesDomainPattern(hostname, config.domain)) continue;
+      
+      // Check paths
+      if (!matchesPathConfig(pathname, config.paths)) continue;
+      
+      // Match found
+      return config;
+    }
+    
+    return null;
+  }
+
+  // Check if current URL matches any configuration
+  const currentHostname = window.location.hostname;
+  const currentPath = window.location.pathname;
+  let domainConfigs = loadDomainConfig();
+  let enabledDomains = domainConfigs.map(c => c.domain); // For legacy compatibility
+  
+  const matchedConfig = findMatchingConfig(currentHostname, currentPath, domainConfigs);
+
+  // Exit early if no matching configuration
+  if (!matchedConfig) {
+    console.log('[Jamf Auto-Refresh] No matching configuration for:', currentHostname + currentPath);
+    console.log('[Jamf Auto-Refresh] Available configs:', domainConfigs.length);
     return;
   }
 
-  console.log('[Jamf Auto-Refresh] Script enabled for domain:', currentHostname);
+  console.log('[Jamf Auto-Refresh] Matched configuration:', {
+    domain: matchedConfig.domain,
+    interval: matchedConfig.interval ? `${matchedConfig.interval}ms` : 'global',
+    paths: matchedConfig.paths
+  });
 
   // Prevent duplicate instances more robustly
   const instanceId = 'cc-auto-refresh-nav';
@@ -110,8 +243,15 @@
     { label: '30 min', value: 30 * 60 * 1000 },
   ];
 
-  // Load refresh interval from storage or use default
+  // Load refresh interval - use matched config's interval or global default
   let refreshIntervalMs = (() => {
+    // Check if matched config has custom interval
+    if (matchedConfig.interval && Number.isFinite(matchedConfig.interval)) {
+      console.log('[Jamf Auto-Refresh] Using domain-specific interval:', matchedConfig.interval);
+      return Math.max(MIN_REFRESH_MS, Math.min(MAX_REFRESH_MS, matchedConfig.interval));
+    }
+    
+    // Fall back to global interval
     const raw = parseInt(localStorage.getItem(STORAGE_KEY_INTERVAL) || '', 10);
     const v = Number.isFinite(raw) ? raw : REFRESH_INTERVAL_MS;
     return Math.max(MIN_REFRESH_MS, Math.min(MAX_REFRESH_MS, v));
