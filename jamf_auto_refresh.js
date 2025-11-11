@@ -1,13 +1,13 @@
 // ==UserScript==
-// @name         Jamf Auto Refresh (Sidebar Widget)
+// @name         Jamf Auto Refresh (Floating Window)
 // @namespace    Charlie Chimp
-// @version      1.7.1
+// @version      1.8.0
 // @author       BetterCallSaul <sherman@atlassian.com>
-// @description  Automatically refreshes the current page at a user-selectable interval with native Jamf Pro sidebar integration and countdown timer.
+// @description  Automatically refreshes the current page at a user-selectable interval with draggable floating window and countdown timer.
 // @match        https://pke.atlassian.com/*
 // @match        https://atlassian.jamfcloud.com/*
 // @grant        none
-// @run-at       document-idle
+// @run-at       document-end
 // ==/UserScript==
 
 (function () {
@@ -25,6 +25,9 @@
   const STORAGE_KEY_ENABLED = 'cc_auto_refresh_enabled:' + location.host;
   const STORAGE_KEY_POS = 'cc_auto_refresh_pos:' + location.host;
   const STORAGE_KEY_INTERVAL = 'cc_auto_refresh_interval_ms:' + location.host;
+  const STORAGE_KEY_COUNT = 'cc_auto_refresh_count:' + location.host;
+  const STORAGE_KEY_LAST_REFRESH = 'cc_auto_refresh_last:' + location.host;
+  const STORAGE_KEY_SESSION_START = 'cc_auto_refresh_session_start:' + location.host;
   const MIN_REFRESH_MS = 5 * 1000;          // 5 seconds minimum for safety
   const MAX_REFRESH_MS = 12 * 60 * 60 * 1000; // 12 hours max
   const INTERVAL_OPTIONS = [
@@ -52,11 +55,34 @@
   })();
 
   let nextRefreshAt = enabled ? Date.now() + refreshIntervalMs : null;
-  let refreshContainer, refreshIcon, refreshDropdown, statusEl, dropdownStatusEl, navTimerBadge, dropdownTimerBadge, tickTimer;
-  let isDropdownOpen = false;
+  let refreshContainer, statusEl, tickTimer;
   let statusMessage = null;
-  let sessionRefreshCount = 0; // Track refreshes this session
-  let lastRefreshTime = null; // Track last refresh timestamp
+  
+  // Load session data from localStorage
+  let sessionRefreshCount = (() => {
+    const raw = parseInt(localStorage.getItem(STORAGE_KEY_COUNT) || '0', 10);
+    return Number.isFinite(raw) ? raw : 0;
+  })();
+  
+  let lastRefreshTime = (() => {
+    const raw = parseInt(localStorage.getItem(STORAGE_KEY_LAST_REFRESH) || '', 10);
+    return Number.isFinite(raw) ? raw : null;
+  })();
+  
+  let sessionStartTime = (() => {
+    const raw = parseInt(localStorage.getItem(STORAGE_KEY_SESSION_START) || '', 10);
+    if (Number.isFinite(raw) && raw > 0) {
+      return raw;
+    }
+    // First time - initialize session start time
+    const now = Date.now();
+    localStorage.setItem(STORAGE_KEY_SESSION_START, String(now));
+    return now;
+  })();
+  
+  let isDragging = false;
+  let dragOffsetX = 0;
+  let dragOffsetY = 0;
 
   function formatTime(ms) {
     if (ms < 0) ms = 0;
@@ -94,6 +120,24 @@
     return `${days}d ago`;
   }
 
+  function formatSessionDuration(ms) {
+    const seconds = Math.floor(ms / 1000);
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) {
+      const remainingSec = seconds % 60;
+      return remainingSec > 0 ? `${minutes}m ${remainingSec}s` : `${minutes}m`;
+    }
+    const hours = Math.floor(minutes / 60);
+    const remainingMins = minutes % 60;
+    if (hours < 24) {
+      return remainingMins > 0 ? `${hours}h ${remainingMins}m` : `${hours}h`;
+    }
+    const days = Math.floor(hours / 24);
+    const remainingHours = hours % 24;
+    return remainingHours > 0 ? `${days}d ${remainingHours}h` : `${days}d`;
+  }
+
   function isUserTyping() {
     const a = document.activeElement;
     if (!a) return false;
@@ -107,366 +151,218 @@
   }
 
   function updateUI() {
-    if (!refreshContainer) return;
-
-    // Update icon appearance based on enabled state
-    refreshIcon.style.color = enabled ? '#22c55e' : 'rgba(255, 255, 255, 0.87)';
-    if (refreshContainer) {
-      refreshContainer.title = enabled 
-        ? `Auto-refresh ON (${formatDuration(refreshIntervalMs)})` 
-        : 'Auto-refresh OFF';
-    }
-
-    const timerTargets = [navTimerBadge, dropdownTimerBadge].filter(Boolean);
-
-    if (!statusEl) return;
-
-    const applyTimer = (text, visible) => {
-      for (const badge of timerTargets) {
-        badge.textContent = text;
-        badge.style.display = visible ? 'inline-flex' : 'none';
-      }
-    };
+    if (!refreshContainer || !statusEl) return;
 
     if (statusMessage) {
       statusEl.textContent = statusMessage;
-      if (dropdownStatusEl) {
-        dropdownStatusEl.textContent = statusMessage;
-        dropdownStatusEl.style.display = 'block';
-      }
-      applyTimer('', false);
       return;
-    }
-
-    // Update dropdown status content
-    if (!dropdownStatusEl) {
-      applyTimer('', false);
     }
 
     // Update countdown content
     if (enabled) {
       const remaining = Math.max(0, nextRefreshAt ? nextRefreshAt - Date.now() : 0);
-      const absolute = nextRefreshAt ? new Date(nextRefreshAt).toLocaleTimeString() : '—';
-      const text = `Next: ${formatTime(remaining)} (${absolute})`;
-      statusEl.textContent = text;
-      if (dropdownStatusEl) {
-        dropdownStatusEl.textContent = text;
-        dropdownStatusEl.style.display = isDropdownOpen ? 'block' : 'none';
-      }
-      applyTimer(formatTime(remaining), true);
+      statusEl.textContent = `Next refresh: ${formatTime(remaining)}`;
     } else {
-      const text = 'Auto-refresh is OFF';
-      statusEl.textContent = text;
-      if (dropdownStatusEl) {
-        dropdownStatusEl.textContent = text;
-        dropdownStatusEl.style.display = isDropdownOpen ? 'block' : 'none';
-      }
-      applyTimer('', false);
+      statusEl.textContent = 'Auto-refresh is OFF';
     }
   }
 
-  function findInShadowDOM(selector) {
-    // Check regular DOM first
-    let element = document.querySelector(selector);
-    if (element) return element;
-
-    // Search in shadow roots recursively
-    function searchShadowRoots(root) {
-      const elements = root.querySelectorAll('*');
-      for (const el of elements) {
-        if (el.shadowRoot) {
-          const found = el.shadowRoot.querySelector(selector);
-          if (found) return found;
-          
-          // Recursively search nested shadow roots
-          const nestedFound = searchShadowRoots(el.shadowRoot);
-          if (nestedFound) return nestedFound;
-        }
+  function loadPosition() {
+    const saved = localStorage.getItem(STORAGE_KEY_POS);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // Ignore parse errors
       }
-      return null;
     }
-
-    return searchShadowRoots(document);
+    return { bottom: '20px', left: '20px' };
   }
 
-  function waitForSidebar() {
-    return new Promise((resolve) => {
-      let attempts = 0;
-      const maxAttempts = 300; // ~30 seconds
-
-      const checkSidebar = () => {
-        // Look for jamf-nav-side-container (the actual Jamf sidebar element)
-        const sidebarContainer = document.querySelector('jamf-nav-side-container');
-        
-        if (sidebarContainer) {
-          console.log('[Jamf Auto-Refresh] Found jamf-nav-side-container');
-          resolve(sidebarContainer);
-          return;
-        }
-
-        attempts += 1;
-        if (attempts >= maxAttempts) {
-          console.error('[Jamf Auto-Refresh] Timed out waiting for sidebar, using body as fallback');
-          resolve(null);
-          return;
-        }
-
-        setTimeout(checkSidebar, 100);
-      };
-      checkSidebar();
-    });
+  function savePosition(bottom, left) {
+    localStorage.setItem(STORAGE_KEY_POS, JSON.stringify({ bottom, left }));
   }
 
-  function toggleDropdown() {
-    isDropdownOpen = !isDropdownOpen;
-    refreshDropdown.style.display = isDropdownOpen ? 'block' : 'none';
+  function startDragging(e) {
+    isDragging = true;
+    const rect = refreshContainer.getBoundingClientRect();
+    dragOffsetX = e.clientX - rect.left;
+    dragOffsetY = e.clientY - rect.top;
+    refreshContainer.style.cursor = 'grabbing';
+    e.preventDefault();
+  }
 
-    if (!isDropdownOpen) {
-      dropdownStatusEl.textContent = statusMessage || '';
-      dropdownStatusEl.style.display = statusMessage ? 'block' : 'none';
-      return;
+  function stopDragging() {
+    if (isDragging) {
+      isDragging = false;
+      refreshContainer.style.cursor = 'grab';
+      // Save position
+      const bottom = refreshContainer.style.bottom;
+      const left = refreshContainer.style.left;
+      savePosition(bottom, left);
     }
-
-    // Close dropdown when clicking outside
-    const closeHandler = (e) => {
-      if (!refreshContainer.contains(e.target)) {
-        isDropdownOpen = false;
-        refreshDropdown.style.display = 'none';
-        dropdownStatusEl.textContent = statusMessage || '';
-        dropdownStatusEl.style.display = statusMessage ? 'block' : 'none';
-        document.removeEventListener('click', closeHandler);
-      }
-    };
-    setTimeout(() => document.addEventListener('click', closeHandler), 0);
   }
 
-  async function createUI() {
-    const sidebarContainer = await waitForSidebar();
+  function drag(e) {
+    if (!isDragging) return;
     
-    // Create a wrapper that mimics jamf-nav-single-item structure
+    const x = e.clientX - dragOffsetX;
+    const y = e.clientY - dragOffsetY;
+    
+    // Convert to bottom/left positioning
+    const bottom = window.innerHeight - y - refreshContainer.offsetHeight;
+    const left = x;
+    
+    refreshContainer.style.bottom = `${Math.max(0, bottom)}px`;
+    refreshContainer.style.left = `${Math.max(0, Math.min(window.innerWidth - refreshContainer.offsetWidth, left))}px`;
+  }
+
+  function createUI() {
+    const position = loadPosition();
+    
+    // Create floating window container
     refreshContainer = document.createElement('div');
     refreshContainer.id = instanceId;
-    refreshContainer.style.position = 'relative';
-    refreshContainer.style.margin = '4px 0';
-    refreshContainer.style.maxWidth = 'max-content';
-    refreshContainer.style.maxWidth = 'unset';
-    refreshContainer.style.zIndex = '5';
+    refreshContainer.style.position = 'fixed';
+    refreshContainer.style.bottom = position.bottom;
+    refreshContainer.style.left = position.left;
+    refreshContainer.style.width = '300px';
+    refreshContainer.style.background = 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)';
+    refreshContainer.style.border = '1px solid rgba(255,255,255,0.2)';
+    refreshContainer.style.borderRadius = '12px';
+    refreshContainer.style.boxShadow = '0 8px 32px rgba(0,0,0,0.4)';
+    refreshContainer.style.padding = '16px';
+    refreshContainer.style.fontFamily = 'system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
+    refreshContainer.style.fontSize = '14px';
+    refreshContainer.style.color = '#f8fafc';
+    refreshContainer.style.zIndex = '99999';
+    refreshContainer.style.cursor = 'grab';
+    refreshContainer.style.userSelect = 'none';
     
-    // Create the inner button that mimics .single--item
-    const innerButton = document.createElement('div');
-    innerButton.className = 'cc-auto-refresh-item';
-    innerButton.style.display = 'flex';
-    innerButton.style.alignItems = 'center';
-    innerButton.style.gap = '12px';
-    innerButton.style.padding = '8px';
-    innerButton.style.margin = '0';
-    innerButton.style.background = enabled ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0)';
-    innerButton.style.borderRadius = '8px';
-    innerButton.style.height = '28px';
-    innerButton.style.cursor = 'pointer';
-    innerButton.style.transition = 'background 0.2s ease';
-    innerButton.style.color = 'rgba(255, 255, 255, 0.87)';
-    innerButton.style.fontSize = '16px';
-    innerButton.tabIndex = 0;
-    innerButton.role = 'button';
+    // Header with title and drag handle
+    const header = document.createElement('div');
+    header.style.display = 'flex';
+    header.style.alignItems = 'center';
+    header.style.justifyContent = 'space-between';
+    header.style.marginBottom = '12px';
+    header.style.paddingBottom = '12px';
+    header.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
     
-    // Create icon container (mimics link--icon)
-    const iconContainer = document.createElement('div');
-    iconContainer.style.display = 'block';
-    iconContainer.style.width = '20px';
-    iconContainer.style.height = '20px';
-    iconContainer.style.flexShrink = '0';
+    const title = document.createElement('div');
+    title.style.fontWeight = '600';
+    title.style.fontSize = '16px';
+    title.style.color = '#22c55e';
+    title.textContent = '🔄 Auto Refresh';
     
-    // Create the refresh icon using SVG to match native icons
-    refreshIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    refreshIcon.setAttribute('class', 'svg-icon link--icon');
-    refreshIcon.setAttribute('viewBox', '0 0 24 24');
-    refreshIcon.setAttribute('fill', 'currentColor');
-    refreshIcon.style.width = '20px';
-    refreshIcon.style.height = 'auto';
-    refreshIcon.style.display = 'block';
-    refreshIcon.style.color = enabled ? '#22c55e' : 'rgba(255, 255, 255, 0.87)';
-    refreshIcon.style.transition = 'color 0.2s ease';
+    const dragHandle = document.createElement('div');
+    dragHandle.style.color = 'rgba(255,255,255,0.4)';
+    dragHandle.style.fontSize = '12px';
+    dragHandle.style.cursor = 'grab';
+    dragHandle.textContent = '⋮⋮';
     
-    // SVG path for refresh icon
-    const iconPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    iconPath.setAttribute('d', 'M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z');
-    refreshIcon.appendChild(iconPath);
-    iconContainer.appendChild(refreshIcon);
-    
-    // Create label (mimics link--slot)
-    const labelEl = document.createElement('div');
-    labelEl.style.display = 'flex';
-    labelEl.style.flexDirection = 'row';
-    labelEl.style.alignItems = 'center';
-    labelEl.style.gap = '8px';
-    labelEl.style.flex = '1';
-    
-    const labelText = document.createElement('span');
-    labelText.textContent = 'Auto Refresh';
-    labelText.style.fontSize = '14px';
-    labelText.style.fontWeight = '400';
-    
-    const labelSubtext = document.createElement('span');
-    labelSubtext.className = 'refresh-label-subtext';
-    labelSubtext.style.fontSize = '12px';
-    labelSubtext.style.opacity = '0.6';
-    labelSubtext.textContent = enabled ? `(${formatDuration(refreshIntervalMs)})` : '(Disabled)';
-    
-    labelEl.appendChild(labelText);
-    labelEl.appendChild(labelSubtext);
-    
-    innerButton.appendChild(iconContainer);
-    innerButton.appendChild(labelEl);
-
-    // Countdown badge (visible on the right)
-    navTimerBadge = document.createElement('span');
-    navTimerBadge.className = 'refresh-timer-badge refresh-timer-nav';
-    navTimerBadge.style.padding = '2px 6px';
-    navTimerBadge.style.borderRadius = '4px';
-    navTimerBadge.style.background = 'rgba(34,197,94,0.2)';
-    navTimerBadge.style.color = '#22c55e';
-    navTimerBadge.style.fontSize = '11px';
-    navTimerBadge.style.fontWeight = '600';
-    navTimerBadge.style.fontVariantNumeric = 'tabular-nums';
-    navTimerBadge.style.display = 'inline-flex';
-    navTimerBadge.style.pointerEvents = 'none';
-    navTimerBadge.style.flexShrink = '0';
-    navTimerBadge.style.marginLeft = 'auto';
-    navTimerBadge.textContent = '0:00';
-    
-    innerButton.appendChild(navTimerBadge);
-    
-    // Hover effect for inner button
-    innerButton.addEventListener('mouseenter', () => {
-      innerButton.style.background = 'rgba(255, 255, 255, 0.1)';
-    });
-    innerButton.addEventListener('mouseleave', () => {
-      innerButton.style.background = enabled ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0)';
-    });
-    
-    refreshContainer.appendChild(innerButton);
-    
-    // Create dropdown menu
-    refreshDropdown = document.createElement('div');
-    refreshDropdown.style.position = 'absolute';
-    refreshDropdown.style.top = '0';
-    refreshDropdown.style.left = '100%';
-    refreshDropdown.style.marginLeft = '8px';
-    refreshDropdown.style.width = '280px';
-    refreshDropdown.style.background = '#1e293b';
-    refreshDropdown.style.border = '1px solid rgba(255,255,255,0.15)';
-    refreshDropdown.style.borderRadius = '8px';
-    refreshDropdown.style.boxShadow = '0 8px 25px rgba(0,0,0,0.3)';
-    refreshDropdown.style.padding = '12px';
-    refreshDropdown.style.display = 'none';
-    refreshDropdown.style.zIndex = '10000';
-    refreshDropdown.style.fontFamily = 'system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
-    refreshDropdown.style.fontSize = '14px';
-    refreshDropdown.style.color = '#f8fafc';
+    header.appendChild(title);
+    header.appendChild(dragHandle);
     
     // Status display
     const statusRow = document.createElement('div');
     statusRow.style.marginBottom = '12px';
-    statusRow.style.padding = '8px';
-    statusRow.style.background = 'rgba(0,0,0,0.2)';
-    statusRow.style.borderRadius = '6px';
+    statusRow.style.padding = '12px';
+    statusRow.style.background = 'rgba(0,0,0,0.3)';
+    statusRow.style.borderRadius = '8px';
+    statusRow.style.border = '1px solid rgba(255,255,255,0.1)';
     
-    statusEl = document.createElement('span');
-    statusEl.className = 'refresh-status';
-    statusEl.style.fontSize = '12px';
-    statusEl.style.opacity = '0.9';
+    statusEl = document.createElement('div');
+    statusEl.style.fontSize = '13px';
+    statusEl.style.fontWeight = '500';
+    statusEl.style.marginBottom = '8px';
+    statusEl.style.color = '#22c55e';
     statusRow.appendChild(statusEl);
-
-    // Session counter display
+    
+    // Session counter
     const sessionCounterEl = document.createElement('div');
-    sessionCounterEl.className = 'refresh-session-counter';
     sessionCounterEl.style.fontSize = '11px';
     sessionCounterEl.style.opacity = '0.7';
-    sessionCounterEl.style.marginTop = '4px';
+    sessionCounterEl.style.marginTop = '6px';
     sessionCounterEl.textContent = `Refreshed ${sessionRefreshCount} times this session`;
     statusRow.appendChild(sessionCounterEl);
-
-    // Last refresh timestamp display
+    
+    // Last refresh timestamp
     const lastRefreshEl = document.createElement('div');
-    lastRefreshEl.className = 'refresh-last-timestamp';
     lastRefreshEl.style.fontSize = '11px';
     lastRefreshEl.style.opacity = '0.7';
     lastRefreshEl.style.marginTop = '2px';
-    lastRefreshEl.textContent = lastRefreshTime ? `Last refreshed: ${formatTimeAgo(Date.now() - lastRefreshTime)}` : 'No refresh yet';
+    lastRefreshEl.textContent = lastRefreshTime ? `Last: ${formatTimeAgo(Date.now() - lastRefreshTime)}` : 'No refresh yet';
     statusRow.appendChild(lastRefreshEl);
-
-    dropdownTimerBadge = document.createElement('span');
-    dropdownTimerBadge.className = 'refresh-timer-badge refresh-timer-dropdown';
-    dropdownTimerBadge.style.marginLeft = '8px';
-    dropdownTimerBadge.style.padding = '2px 6px';
-    dropdownTimerBadge.style.borderRadius = '4px';
-    dropdownTimerBadge.style.background = 'rgba(34,197,94,0.2)';
-    dropdownTimerBadge.style.color = '#bbf7d0';
-    dropdownTimerBadge.style.fontSize = '12px';
-    dropdownTimerBadge.style.fontVariantNumeric = 'tabular-nums';
-    dropdownTimerBadge.style.display = 'none';
-    statusRow.appendChild(dropdownTimerBadge);
-
-    dropdownStatusEl = document.createElement('div');
-    dropdownStatusEl.className = 'refresh-dropdown-status';
-    dropdownStatusEl.style.marginTop = '8px';
-    dropdownStatusEl.style.fontSize = '12px';
-    dropdownStatusEl.style.opacity = '0.9';
-    dropdownStatusEl.style.display = 'none';
-    statusRow.appendChild(dropdownStatusEl);
-
+    
+    // Session duration
+    const sessionDurationEl = document.createElement('div');
+    sessionDurationEl.style.fontSize = '11px';
+    sessionDurationEl.style.opacity = '0.7';
+    sessionDurationEl.style.marginTop = '2px';
+    sessionDurationEl.textContent = `Session: ${formatSessionDuration(Date.now() - sessionStartTime)}`;
+    statusRow.appendChild(sessionDurationEl);
+    
     // Manual refresh button
     const refreshNowBtn = document.createElement('button');
     refreshNowBtn.textContent = '🔄 Refresh Now';
     refreshNowBtn.style.width = '100%';
-    refreshNowBtn.style.padding = '8px 12px';
+    refreshNowBtn.style.padding = '10px';
     refreshNowBtn.style.marginBottom = '8px';
     refreshNowBtn.style.border = 'none';
-    refreshNowBtn.style.borderRadius = '6px';
+    refreshNowBtn.style.borderRadius = '8px';
     refreshNowBtn.style.background = '#3b82f6';
     refreshNowBtn.style.color = 'white';
     refreshNowBtn.style.cursor = 'pointer';
-    refreshNowBtn.style.fontWeight = '500';
-    refreshNowBtn.style.transition = 'background 0.2s ease';
+    refreshNowBtn.style.fontWeight = '600';
+    refreshNowBtn.style.fontSize = '14px';
+    refreshNowBtn.style.transition = 'all 0.2s ease';
     refreshNowBtn.addEventListener('mouseenter', () => {
       refreshNowBtn.style.background = '#2563eb';
+      refreshNowBtn.style.transform = 'translateY(-1px)';
     });
     refreshNowBtn.addEventListener('mouseleave', () => {
       refreshNowBtn.style.background = '#3b82f6';
+      refreshNowBtn.style.transform = 'translateY(0)';
     });
-    refreshNowBtn.addEventListener('click', () => {
+    refreshNowBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
       sessionRefreshCount++;
       lastRefreshTime = Date.now();
+      localStorage.setItem(STORAGE_KEY_COUNT, String(sessionRefreshCount));
+      localStorage.setItem(STORAGE_KEY_LAST_REFRESH, String(lastRefreshTime));
       window.location.reload();
     });
-
+    
     // Toggle button
     const toggleBtn = document.createElement('button');
-    toggleBtn.textContent = enabled ? 'Disable Auto-refresh' : 'Enable Auto-refresh';
+    toggleBtn.textContent = enabled ? '⏸ Disable Auto-refresh' : '▶ Enable Auto-refresh';
     toggleBtn.style.width = '100%';
-    toggleBtn.style.padding = '8px 12px';
+    toggleBtn.style.padding = '10px';
     toggleBtn.style.marginBottom = '12px';
     toggleBtn.style.border = 'none';
-    toggleBtn.style.borderRadius = '6px';
+    toggleBtn.style.borderRadius = '8px';
     toggleBtn.style.background = enabled ? '#ef4444' : '#22c55e';
     toggleBtn.style.color = 'white';
     toggleBtn.style.cursor = 'pointer';
-    toggleBtn.style.fontWeight = '500';
-    toggleBtn.addEventListener('click', () => {
+    toggleBtn.style.fontWeight = '600';
+    toggleBtn.style.fontSize = '14px';
+    toggleBtn.style.transition = 'all 0.2s ease';
+    toggleBtn.addEventListener('mouseenter', () => {
+      toggleBtn.style.transform = 'translateY(-1px)';
+      toggleBtn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+    });
+    toggleBtn.addEventListener('mouseleave', () => {
+      toggleBtn.style.transform = 'translateY(0)';
+      toggleBtn.style.boxShadow = 'none';
+    });
+    toggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
       enabled = !enabled;
       localStorage.setItem(STORAGE_KEY_ENABLED, String(enabled));
       if (enabled) scheduleNext();
       else nextRefreshAt = null;
-      toggleBtn.textContent = enabled ? 'Disable Auto-refresh' : 'Enable Auto-refresh';
+      toggleBtn.textContent = enabled ? '⏸ Disable Auto-refresh' : '▶ Enable Auto-refresh';
       toggleBtn.style.background = enabled ? '#ef4444' : '#22c55e';
-      // Update label subtext and button background
-      if (window.__ccRefreshLabelSubtext) {
-        window.__ccRefreshLabelSubtext.textContent = enabled ? `(${formatDuration(refreshIntervalMs)})` : '(Disabled)';
-      }
-      if (window.__ccRefreshInnerButton) {
-        window.__ccRefreshInnerButton.style.background = enabled ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0)';
-      }
       updateUI();
     });
     
@@ -479,18 +375,19 @@
     
     const intervalLabel = document.createElement('label');
     intervalLabel.textContent = 'Interval:';
-    intervalLabel.style.fontSize = '12px';
-    intervalLabel.style.opacity = '0.9';
-    intervalLabel.style.minWidth = '50px';
+    intervalLabel.style.fontSize = '13px';
+    intervalLabel.style.fontWeight = '500';
+    intervalLabel.style.minWidth = '60px';
     
     const intervalSelect = document.createElement('select');
     intervalSelect.style.flex = '1';
-    intervalSelect.style.padding = '4px 8px';
+    intervalSelect.style.padding = '6px 8px';
     intervalSelect.style.border = '1px solid rgba(255,255,255,0.2)';
-    intervalSelect.style.borderRadius = '4px';
+    intervalSelect.style.borderRadius = '6px';
     intervalSelect.style.background = '#334155';
     intervalSelect.style.color = '#f8fafc';
-    intervalSelect.style.fontSize = '12px';
+    intervalSelect.style.fontSize = '13px';
+    intervalSelect.style.cursor = 'pointer';
     
     const populateOptions = (selectedValue) => {
       intervalSelect.innerHTML = '';
@@ -516,17 +413,14 @@
     
     populateOptions(refreshIntervalMs);
     
-    intervalSelect.addEventListener('change', () => {
+    intervalSelect.addEventListener('change', (e) => {
+      e.stopPropagation();
       const val = parseInt(intervalSelect.value, 10);
       if (Number.isFinite(val)) {
         refreshIntervalMs = Math.max(MIN_REFRESH_MS, Math.min(MAX_REFRESH_MS, val));
         localStorage.setItem(STORAGE_KEY_INTERVAL, String(refreshIntervalMs));
         populateOptions(refreshIntervalMs);
         if (enabled) scheduleNext(refreshIntervalMs);
-        // Update label subtext
-        if (window.__ccRefreshLabelSubtext && enabled) {
-          window.__ccRefreshLabelSubtext.textContent = `(${formatDuration(refreshIntervalMs)})`;
-        }
         updateUI();
       }
     });
@@ -534,56 +428,30 @@
     intervalRow.appendChild(intervalLabel);
     intervalRow.appendChild(intervalSelect);
     
-    // Assemble dropdown
-    refreshDropdown.appendChild(statusRow);
-    refreshDropdown.appendChild(refreshNowBtn);
-    refreshDropdown.appendChild(toggleBtn);
-    refreshDropdown.appendChild(intervalRow);
-
+    // Assemble the UI
+    refreshContainer.appendChild(header);
+    refreshContainer.appendChild(statusRow);
+    refreshContainer.appendChild(refreshNowBtn);
+    refreshContainer.appendChild(toggleBtn);
+    refreshContainer.appendChild(intervalRow);
+    
     // Store references for updates
     window.__ccRefreshSessionCounter = sessionCounterEl;
     window.__ccRefreshLastTimestamp = lastRefreshEl;
-    window.__ccRefreshLabelSubtext = labelSubtext;
-    window.__ccRefreshInnerButton = innerButton;
+    window.__ccRefreshSessionDuration = sessionDurationEl;
     
-    // Click handler for inner button
-    innerButton.addEventListener('click', toggleDropdown);
+    // Add drag functionality
+    header.addEventListener('mousedown', startDragging);
+    document.addEventListener('mousemove', drag);
+    document.addEventListener('mouseup', stopDragging);
     
-    // Assemble dropdown to container
-    refreshContainer.appendChild(refreshDropdown);
+    // Prevent text selection while dragging
+    refreshContainer.addEventListener('dragstart', (e) => e.preventDefault());
     
-    // Insert into sidebar
-    console.log('[Jamf Auto-Refresh] Sidebar container:', sidebarContainer?.tagName || 'NOT FOUND');
+    // Add to page
+    document.body.appendChild(refreshContainer);
     
-    if (!sidebarContainer) {
-      console.error('[Jamf Auto-Refresh] Could not find jamf-nav-side-container, falling back to fixed position');
-      document.body.appendChild(refreshContainer);
-      refreshContainer.style.position = 'fixed';
-      refreshContainer.style.bottom = '20px';
-      refreshContainer.style.left = '20px';
-      refreshContainer.style.width = '280px';
-      refreshContainer.style.background = '#1e293b';
-      refreshContainer.style.border = '1px solid rgba(255,255,255,0.15)';
-      refreshContainer.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
-      refreshContainer.style.padding = '12px';
-      refreshContainer.style.borderRadius = '8px';
-      refreshContainer.style.zIndex = '9999';
-      return;
-    }
-    
-    // Insert as direct child of jamf-nav-side-container (like other nav items)
-    // Try to insert at the bottom after existing nav items
-    const lastNavItem = sidebarContainer.querySelector('jamf-nav-single-item:last-of-type, jamf-nav-multi-item:last-of-type');
-    
-    if (lastNavItem) {
-      console.log('[Jamf Auto-Refresh] Inserting after last nav item');
-      lastNavItem.parentNode.insertBefore(refreshContainer, lastNavItem.nextSibling);
-    } else {
-      console.log('[Jamf Auto-Refresh] Appending directly to sidebar container');
-      sidebarContainer.appendChild(refreshContainer);
-    }
-    
-    console.log('[Jamf Auto-Refresh] Widget successfully added to sidebar');
+    console.log('[Jamf Auto-Refresh] Floating window created');
   }
 
   function tick() {
@@ -607,7 +475,12 @@
 
     // Update last refresh timestamp display if it exists
     if (window.__ccRefreshLastTimestamp && lastRefreshTime) {
-      window.__ccRefreshLastTimestamp.textContent = `Last refreshed: ${formatTimeAgo(now - lastRefreshTime)}`;
+      window.__ccRefreshLastTimestamp.textContent = `Last: ${formatTimeAgo(now - lastRefreshTime)}`;
+    }
+    
+    // Update session duration display if it exists
+    if (window.__ccRefreshSessionDuration) {
+      window.__ccRefreshSessionDuration.textContent = `Session: ${formatSessionDuration(now - sessionStartTime)}`;
     }
 
     if (remaining <= 0) {
@@ -620,12 +493,15 @@
         updateUI();
         sessionRefreshCount++;
         lastRefreshTime = Date.now();
+        // Save to localStorage before refresh
+        localStorage.setItem(STORAGE_KEY_COUNT, String(sessionRefreshCount));
+        localStorage.setItem(STORAGE_KEY_LAST_REFRESH, String(lastRefreshTime));
         // Update session counter and last refresh if elements exist
         if (window.__ccRefreshSessionCounter) {
           window.__ccRefreshSessionCounter.textContent = `Refreshed ${sessionRefreshCount} times this session`;
         }
         if (window.__ccRefreshLastTimestamp) {
-          window.__ccRefreshLastTimestamp.textContent = `Last refreshed: just now`;
+          window.__ccRefreshLastTimestamp.textContent = `Last: just now`;
         }
         window.location.reload();
         return; // In case reload is blocked for some reason
@@ -637,8 +513,8 @@
     updateUI();
   }
 
-  async function init() {
-    await createUI();
+  function init() {
+    createUI();
     updateUI();
     tickTimer = setInterval(tick, 1000);
 
