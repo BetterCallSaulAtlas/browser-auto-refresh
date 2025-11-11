@@ -433,6 +433,8 @@
     
     refreshContainer.style.bottom = `${Math.max(0, bottom)}px`;
     refreshContainer.style.left = `${Math.max(0, Math.min(window.innerWidth - refreshContainer.offsetWidth, left))}px`;
+  }
+
   function openDomainManager() {
     // Create modal overlay
     const overlay = document.createElement('div');
