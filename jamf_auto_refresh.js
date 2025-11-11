@@ -16,6 +16,14 @@
 (function () {
   'use strict';
 
+  // Prevent multiple executions - use a unique property on window
+  const UNIQUE_ID = 'cc_auto_refresh_v2_1_0_loaded';
+  if (window[UNIQUE_ID]) {
+    console.log('[Jamf Auto-Refresh] Script already executed, aborting');
+    return;
+  }
+  window[UNIQUE_ID] = true;
+
   // ============================================================================
   // USER CONFIGURATION
   // ============================================================================
