@@ -111,6 +111,97 @@ const DEFAULT_ENABLED_DOMAINS = [
 
 **Note:** The visual domain manager stores settings in localStorage. If you edit the code directly, those changes will be used as defaults for new configurations.
 
+### Advanced Configuration (v2.1.0+)
+
+Click the **▼** expand button on any domain to access advanced settings:
+
+#### **Custom Refresh Intervals**
+Set different refresh rates for different domains:
+- Production: 5 minutes (less aggressive)
+- Development: 15 seconds (rapid updates)
+- Staging: 1 minute (balanced)
+
+#### **Path-Based Matching**
+Enable auto-refresh only on specific pages:
+
+**Include Patterns** (matches these paths):
+- `/computers.html` - Exact match
+- `/computers*` - Starts with /computers
+- `*/devices/*` - Contains /devices/ anywhere
+- `**` - All paths (default)
+- `regex:^/computers/.*\.html$` - Regex pattern
+
+**Exclude Patterns** (blocks these paths - takes priority):
+- `/settings/*` - Don't refresh settings pages
+- `/admin/*` - Don't refresh admin pages
+- `regex:.*/edit/.*` - Don't refresh any edit pages
+
+#### **Pattern Types**
+
+**Glob Patterns** (simple wildcards):
+- `*` - Matches anything except `/`
+- `**` - Matches anything including `/`
+- `/computers*` - Starts with /computers
+- `*/inventory/*.html` - Contains /inventory/ with .html file
+
+**Regex Patterns** (advanced matching):
+- Prefix with `regex:` to use regex
+- `regex:^/computers/.*\.html$` - Computers pages ending in .html
+- `regex:^/(computers|devices)/` - Computers OR devices pages
+- `regex:^(?!.*/edit/).*$` - Anything NOT containing /edit/
+
+### Configuration Examples
+
+#### Example 1: Production vs Development
+```javascript
+[
+  {
+    domain: 'prod.jamfcloud.com',
+    interval: 300000, // 5 minutes
+    paths: {
+      include: ['/dashboard*', '/computers.html'],
+      exclude: ['/settings/*']
+    }
+  },
+  {
+    domain: 'dev.jamfcloud.com',
+    interval: 15000, // 15 seconds
+    paths: {
+      include: ['*'],
+      exclude: []
+    }
+  }
+]
+```
+
+#### Example 2: Only Inventory Pages
+```javascript
+[
+  {
+    domain: '*.jamfcloud.com',
+    interval: 60000, // 1 minute
+    paths: {
+      include: ['/computers.html', '/mobileDevices.html', '/inventory/*'],
+      exclude: []
+    }
+  }
+]
+```
+
+#### Example 3: Complex Regex Patterns
+```javascript
+[
+  {
+    domain: 'jamf.company.com',
+    interval: null, // Use global
+    paths: {
+      include: ['regex:^/(computers|devices)/.*\\.html$'],
+      exclude: ['regex:.*/edit/.*', 'regex:.*/settings/.*']
+    }
+  }
+]
+```
+
 ## Usage
 
 ### Basic Controls
@@ -131,7 +222,19 @@ The script automatically delays refresh when you're typing in forms to prevent d
 
 ## Version History
 
-### v2.0.0 (Latest)
+### v2.1.0 (Latest)
+- 🎯 **Path-Based URL Matching** - Enable only on specific pages
+- 🌐 **Glob Pattern Support** - Use `*`, `**`, `/computers*`, `*/devices/*`
+- 🔧 **Regex Pattern Support** - Use `regex:^/computers/.*\.html$` for complex matching
+- ⏱️ **Per-Domain Intervals** - Set custom refresh rates for each domain
+- 📍 **Include/Exclude Paths** - Fine-grained control over which pages to refresh
+- ⚙️ **Full Advanced Settings UI** - Edit intervals and paths visually
+- 🎨 **Expandable Config Cards** - Click to reveal advanced settings
+- 💾 **Auto-save Configuration** - All changes persist immediately
+- 🔄 **Backward Compatible** - Auto-migrates from v2.0.0
+- 📊 **Config Display** - Shows interval and path count at a glance
+
+### v2.0.0
 - 🎨 **Visual Domain Manager UI** - Manage domains through intuitive modal interface
 - ✨ **No Code Editing Required** - Add/remove domains with buttons and inputs
 - 🧪 **Pattern Testing** - Test domain patterns before adding them
