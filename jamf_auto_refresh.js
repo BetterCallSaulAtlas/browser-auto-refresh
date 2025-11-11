@@ -33,8 +33,7 @@
   //   const ENABLED_DOMAINS = ['domain1.com', 'domain2.com', 'subdomain.example.com'];
 
   const ENABLED_DOMAINS = [
-    'pke.atlassian.com',
-    'atlassian.jamfcloud.com'
+    '*.jamfcloud.com'
   ];
 
   // ============================================================================
