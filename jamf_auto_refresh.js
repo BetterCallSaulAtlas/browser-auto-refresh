@@ -124,6 +124,11 @@
 
   // Check if a path matches a pattern (glob or regex)
   function matchesPathPattern(currentPath, pattern) {
+    // Special case: single * means match all paths
+    if (pattern === '*') {
+      return true;
+    }
+    
     // Regex pattern (starts with "regex:")
     if (pattern.startsWith('regex:')) {
       try {
