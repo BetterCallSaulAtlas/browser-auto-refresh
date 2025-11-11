@@ -55,38 +55,61 @@ To manually check for updates:
 
 ## Configuration
 
-### Enabling the Script for Your Domains
+### Visual Domain Manager (Recommended)
 
-The script includes a configurable domain whitelist at the top of the file. By default, it won't run on any sites until you configure your Jamf Pro URLs.
+The easiest way to configure domains is through the built-in visual interface:
+
+1. **Open the floating widget** on any page
+2. **Click "⚙️ Domain Settings"** button
+3. **Use the visual interface** to:
+   - View all configured domains
+   - Add new domain patterns
+   - Test patterns before adding
+   - Remove unwanted domains
+   - See which patterns match the current page
+
+**Screenshot:** *(Visual domain manager modal showing domain list, add/remove functionality, and test feature)*
+
+### Features:
+- ✅ **Current Domain Indicator** - Shows your current hostname
+- ✅ **Domain List** - All configured domains with delete buttons
+- ✅ **Color Coding** - Domains matching current page shown in green
+- ✅ **Test Button** - Validate patterns before adding
+- ✅ **Real-time Feedback** - Success/error messages
+- ✅ **Auto-save** - Changes persist immediately
+
+### Manual Configuration (Advanced)
+
+You can also edit the configuration directly in the code:
 
 **To configure:**
 1. Open your userscript manager (e.g., Tampermonkey)
 2. Click on the script to edit it
 3. Find the `USER CONFIGURATION` section (near the top)
-4. Edit the `ENABLED_DOMAINS` array
+4. Edit the `DEFAULT_ENABLED_DOMAINS` array
 
 **Examples:**
 
 ```javascript
 // Single domain
-const ENABLED_DOMAINS = [
+const DEFAULT_ENABLED_DOMAINS = [
   'yourcompany.jamfcloud.com'
 ];
 
 // Multiple domains
-const ENABLED_DOMAINS = [
+const DEFAULT_ENABLED_DOMAINS = [
   'yourcompany.jamfcloud.com',
   'jamf.yourcompany.com',
   'jamf-prod.internal.company.com'
 ];
 
 // Using wildcards (matches any subdomain)
-const ENABLED_DOMAINS = [
+const DEFAULT_ENABLED_DOMAINS = [
   '*jamfcloud.com'  // Matches any *.jamfcloud.com domain
 ];
 ```
 
-**Note:** The script uses `@match *://*/*` to load on all pages, but the domain check happens at runtime. This means it won't interfere with other websites—it simply exits early if the domain doesn't match.
+**Note:** The visual domain manager stores settings in localStorage. If you edit the code directly, those changes will be used as defaults for new configurations.
 
 ## Usage
 
@@ -108,7 +131,17 @@ The script automatically delays refresh when you're typing in forms to prevent d
 
 ## Version History
 
-### v1.9.0 (Latest)
+### v2.0.0 (Latest)
+- 🎨 **Visual Domain Manager UI** - Manage domains through intuitive modal interface
+- ✨ **No Code Editing Required** - Add/remove domains with buttons and inputs
+- 🧪 **Pattern Testing** - Test domain patterns before adding them
+- 🎯 **Real-time Feedback** - Success/error messages for all operations
+- 🔍 **Domain Highlighting** - Current domain shown in green if it matches a pattern
+- ⌨️ **Keyboard Support** - Press Enter to add domains quickly
+- 💾 **Auto-save** - Changes persist immediately to localStorage
+- 🔙 **Backward Compatible** - Still supports DEFAULT_ENABLED_DOMAINS for manual editing
+
+### v1.9.0
 - ✨ **User-Configurable Domains** - Easy-to-edit configuration section at top of script
 - 🌐 **Universal @match** - Script uses `@match *://*/*` with runtime domain checking
 - 🔧 **Domain Whitelist** - Script only runs on domains you specify in ENABLED_DOMAINS array
