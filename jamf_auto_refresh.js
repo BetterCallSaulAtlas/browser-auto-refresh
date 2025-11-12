@@ -263,6 +263,7 @@
   const STORAGE_KEY_COUNT = 'cc_auto_refresh_count:' + location.host;
   const STORAGE_KEY_LAST_REFRESH = 'cc_auto_refresh_last:' + location.host;
   const STORAGE_KEY_SESSION_START = 'cc_auto_refresh_session_start:' + location.host;
+  const STORAGE_KEY_MINI_MODE = 'cc_auto_refresh_mini_mode:' + location.host;
   const MIN_REFRESH_MS = 5 * 1000;          // 5 seconds minimum for safety
   const MAX_REFRESH_MS = 12 * 60 * 60 * 1000; // 12 hours max
   const INTERVAL_OPTIONS = [
@@ -300,6 +301,15 @@
   let refreshContainer, statusEl, tickTimer;
   let statusMessage = null;
   
+  // Mini mode state
+  let isMiniMode = (() => {
+    const raw = localStorage.getItem(STORAGE_KEY_MINI_MODE);
+    return raw === 'true';
+  })();
+  
+  // UI elements references for mini mode
+  let uiElements = {};
+  
   // Load session data from localStorage
   let sessionRefreshCount = (() => {
     const raw = parseInt(localStorage.getItem(STORAGE_KEY_COUNT) || '0', 10);
@@ -325,6 +335,7 @@
   let isDragging = false;
   let dragOffsetX = 0;
   let dragOffsetY = 0;
+  let hasDragged = false;
 
   function formatTime(ms) {
     if (ms < 0) ms = 0;
@@ -397,6 +408,9 @@
 
     if (statusMessage) {
       statusEl.textContent = statusMessage;
+      if (uiElements.miniModeTimer && isMiniMode) {
+        uiElements.miniModeTimer.textContent = statusMessage;
+      }
       return;
     }
 
@@ -404,8 +418,19 @@
     if (enabled) {
       const remaining = Math.max(0, nextRefreshAt ? nextRefreshAt - Date.now() : 0);
       statusEl.textContent = `Next refresh: ${formatTime(remaining)}`;
+      
+      // Update mini mode timer if in mini mode
+      if (uiElements.miniModeTimer && isMiniMode) {
+        const pauseIcon = enabled ? '⏸' : '▶';
+        uiElements.miniModeTimer.textContent = `${pauseIcon} ${formatTime(remaining)}`;
+      }
     } else {
       statusEl.textContent = 'Auto-refresh is OFF';
+      
+      // Update mini mode timer if in mini mode
+      if (uiElements.miniModeTimer && isMiniMode) {
+        uiElements.miniModeTimer.textContent = '⏸ OFF';
+      }
     }
   }
 
@@ -520,6 +545,7 @@
 
   function startDragging(e) {
     isDragging = true;
+    hasDragged = false;
     const rect = refreshContainer.getBoundingClientRect();
     dragOffsetX = e.clientX - rect.left;
     dragOffsetY = e.clientY - rect.top;
@@ -540,6 +566,8 @@
 
   function drag(e) {
     if (!isDragging) return;
+    
+    hasDragged = true;
     
     const x = e.clientX - dragOffsetX;
     const y = e.clientY - dragOffsetY;
@@ -1265,6 +1293,131 @@
     setTimeout(() => addInput.focus(), 100);
   }
 
+  // Toggle between mini and full mode
+  function toggleMiniMode() {
+    if (!refreshContainer) return;
+    
+    isMiniMode = !isMiniMode;
+    localStorage.setItem(STORAGE_KEY_MINI_MODE, String(isMiniMode));
+    
+    if (isMiniMode) {
+      // Enter mini mode
+      refreshContainer.style.width = 'auto';
+      refreshContainer.style.minWidth = '120px';
+      refreshContainer.style.padding = '8px 12px';
+      refreshContainer.style.borderRadius = '20px';
+      refreshContainer.style.cursor = 'grab';
+      refreshContainer.setAttribute('aria-label', 'Auto refresh widget (collapsed)');
+      
+      // Hide full mode elements
+      if (uiElements.statusRow) uiElements.statusRow.style.display = 'none';
+      if (uiElements.refreshNowBtn) uiElements.refreshNowBtn.style.display = 'none';
+      if (uiElements.toggleBtn) uiElements.toggleBtn.style.display = 'none';
+      if (uiElements.intervalRow) uiElements.intervalRow.style.display = 'none';
+      if (uiElements.settingsBtn) uiElements.settingsBtn.style.display = 'none';
+      
+      // Update header for mini mode
+      if (uiElements.header) {
+        uiElements.header.style.marginBottom = '0';
+        uiElements.header.style.paddingBottom = '0';
+        uiElements.header.style.borderBottom = 'none';
+      }
+      
+      // Hide title text, keep only icon
+      if (uiElements.title) {
+        uiElements.title.textContent = '🔄';
+        uiElements.title.style.fontSize = '18px';
+      }
+      
+      // Change minimize button to expand
+      if (uiElements.minimizeBtn) {
+        uiElements.minimizeBtn.innerHTML = '+';
+        uiElements.minimizeBtn.title = 'Expand widget';
+      }
+      
+      // Create or show mini mode timer
+      if (!uiElements.miniModeTimer) {
+        uiElements.miniModeTimer = document.createElement('div');
+        uiElements.miniModeTimer.style.fontSize = '14px';
+        uiElements.miniModeTimer.style.fontWeight = '500';
+        uiElements.miniModeTimer.style.display = 'inline-flex';
+        uiElements.miniModeTimer.style.alignItems = 'center';
+        uiElements.miniModeTimer.style.gap = '6px';
+        uiElements.miniModeTimer.style.marginLeft = '8px';
+        uiElements.miniModeTimer.style.marginRight = '12px';
+        uiElements.header.insertBefore(uiElements.miniModeTimer, uiElements.header.lastChild);
+      }
+      uiElements.miniModeTimer.style.display = 'inline-flex';
+      
+      // Make entire widget clickable to expand
+      refreshContainer.onclick = (e) => {
+        // Don't toggle if user just finished dragging
+        if (hasDragged) {
+          hasDragged = false;
+          return;
+        }
+        
+        if (e.target !== uiElements.minimizeBtn && !e.target.closest('button')) {
+          toggleMiniMode();
+        }
+      };
+      
+      updateUI();
+      
+    } else {
+      // Enter full mode
+      refreshContainer.style.width = '300px';
+      refreshContainer.style.minWidth = 'auto';
+      refreshContainer.style.padding = '16px';
+      refreshContainer.style.borderRadius = '12px';
+      refreshContainer.style.cursor = 'grab';
+      refreshContainer.setAttribute('aria-label', 'Auto refresh widget (expanded)');
+      
+      // Show full mode elements
+      if (uiElements.statusRow) uiElements.statusRow.style.display = 'block';
+      if (uiElements.refreshNowBtn) uiElements.refreshNowBtn.style.display = 'block';
+      if (uiElements.toggleBtn) uiElements.toggleBtn.style.display = 'block';
+      if (uiElements.intervalRow) uiElements.intervalRow.style.display = 'flex';
+      if (uiElements.settingsBtn) uiElements.settingsBtn.style.display = 'block';
+      
+      // Restore header
+      if (uiElements.header) {
+        uiElements.header.style.marginBottom = '12px';
+        uiElements.header.style.paddingBottom = '12px';
+        uiElements.header.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
+      }
+      
+      // Restore title
+      if (uiElements.title) {
+        uiElements.title.textContent = '🔄 Auto Refresh';
+        uiElements.title.style.fontSize = '16px';
+      }
+      
+      // Change expand button back to minimize
+      if (uiElements.minimizeBtn) {
+        uiElements.minimizeBtn.innerHTML = '−';
+        uiElements.minimizeBtn.title = 'Minimize widget';
+      }
+      
+      // Hide mini mode timer
+      if (uiElements.miniModeTimer) {
+        uiElements.miniModeTimer.style.display = 'none';
+      }
+      
+      // Remove widget click handler
+      refreshContainer.onclick = null;
+      
+      updateUI();
+    }
+    
+    // Ensure widget stays in viewport after resize
+    const currentBottom = refreshContainer.style.bottom;
+    const currentLeft = refreshContainer.style.left;
+    const constrained = constrainToViewport(currentBottom, currentLeft, { duringDrag: false });
+    refreshContainer.style.bottom = constrained.bottom;
+    refreshContainer.style.left = constrained.left;
+  }
+
   function createUI() {
     const position = loadPosition();
     
@@ -1302,14 +1455,49 @@
     title.style.color = '#22c55e';
     title.textContent = '🔄 Auto Refresh';
     
+    const headerButtons = document.createElement('div');
+    headerButtons.style.display = 'flex';
+    headerButtons.style.alignItems = 'center';
+    headerButtons.style.gap = '8px';
+    
+    const minimizeBtn = document.createElement('button');
+    minimizeBtn.innerHTML = '−';
+    minimizeBtn.title = 'Minimize widget';
+    minimizeBtn.style.background = 'rgba(255,255,255,0.1)';
+    minimizeBtn.style.border = 'none';
+    minimizeBtn.style.borderRadius = '4px';
+    minimizeBtn.style.color = '#f8fafc';
+    minimizeBtn.style.cursor = 'pointer';
+    minimizeBtn.style.fontSize = '18px';
+    minimizeBtn.style.width = '24px';
+    minimizeBtn.style.height = '24px';
+    minimizeBtn.style.padding = '0';
+    minimizeBtn.style.display = 'flex';
+    minimizeBtn.style.alignItems = 'center';
+    minimizeBtn.style.justifyContent = 'center';
+    minimizeBtn.style.transition = 'all 0.2s ease';
+    minimizeBtn.addEventListener('mouseenter', () => {
+      minimizeBtn.style.background = 'rgba(255,255,255,0.2)';
+    });
+    minimizeBtn.addEventListener('mouseleave', () => {
+      minimizeBtn.style.background = 'rgba(255,255,255,0.1)';
+    });
+    minimizeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleMiniMode();
+    });
+    
     const dragHandle = document.createElement('div');
     dragHandle.style.color = 'rgba(255,255,255,0.4)';
     dragHandle.style.fontSize = '12px';
     dragHandle.style.cursor = 'grab';
     dragHandle.textContent = '⋮⋮';
     
+    headerButtons.appendChild(minimizeBtn);
+    headerButtons.appendChild(dragHandle);
+    
     header.appendChild(title);
-    header.appendChild(dragHandle);
+    header.appendChild(headerButtons);
     
     // Status display
     const statusRow = document.createElement('div');
@@ -1516,6 +1704,19 @@
     window.__ccRefreshLastTimestamp = lastRefreshEl;
     window.__ccRefreshSessionDuration = sessionDurationEl;
     
+    // Store UI element references for mini mode
+    uiElements = {
+      header,
+      title,
+      minimizeBtn,
+      statusRow,
+      refreshNowBtn,
+      toggleBtn,
+      intervalRow,
+      settingsBtn,
+      miniModeTimer: null
+    };
+    
     // Add drag functionality
     header.addEventListener('mousedown', startDragging);
     
@@ -1565,6 +1766,20 @@
     
     // Add to page
     document.body.appendChild(refreshContainer);
+    
+    // Restore mini mode state if it was previously minimized
+    if (isMiniMode) {
+      // Apply mini mode without animation on initial load
+      refreshContainer.style.transition = 'none';
+      toggleMiniMode();
+      // Re-enable transitions after a frame
+      requestAnimationFrame(() => {
+        refreshContainer.style.transition = 'all 0.2s ease';
+      });
+    } else {
+      // Add transition for future toggles
+      refreshContainer.style.transition = 'all 0.2s ease';
+    }
     
     // Final validation after widget is in DOM and has dimensions
     // This ensures the position is correct based on actual rendered size
