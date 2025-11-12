@@ -248,12 +248,11 @@
   const instanceId = 'cc-auto-refresh-nav';
   
   // Remove any orphaned modals from previous navigation
-  document.querySelectorAll('div[style*="backdrop-filter: blur(4px)"]').forEach(el => {
-    if (el.style.position === 'fixed' && el.style.zIndex === '999999') {
-      console.log('[Jamf Auto-Refresh] Removing orphaned modal');
-      el.remove();
-    }
-  });
+  const orphanedModal = document.getElementById('cc-auto-refresh-modal');
+  if (orphanedModal) {
+    console.log('[Jamf Auto-Refresh] Removing orphaned modal from previous navigation');
+    orphanedModal.remove();
+  }
 
   const REFRESH_INTERVAL_MS = 1 * 60 * 1000; // default 1 minute
   const DELAY_WHILE_TYPING_MS = 10 * 1000;   // Delay if user is typing when refresh would occur
@@ -309,6 +308,9 @@
   
   // UI elements references for mini mode
   let uiElements = {};
+  
+  // Global modal reference to prevent duplicates
+  let currentModal = null;
   
   // Load session data from localStorage
   let sessionRefreshCount = (() => {
@@ -584,8 +586,16 @@
   }
 
   function openDomainManager() {
+    // Close existing modal if one is open
+    if (currentModal && document.body.contains(currentModal)) {
+      console.log('[Jamf Auto-Refresh] Closing existing modal before opening new one');
+      document.body.removeChild(currentModal);
+      currentModal = null;
+    }
+    
     // Create modal overlay
     const overlay = document.createElement('div');
+    overlay.id = 'cc-auto-refresh-modal';
     overlay.style.position = 'fixed';
     overlay.style.top = '0';
     overlay.style.left = '0';
@@ -597,6 +607,9 @@
     overlay.style.alignItems = 'center';
     overlay.style.justifyContent = 'center';
     overlay.style.backdropFilter = 'blur(4px)';
+    
+    // Store reference to current modal
+    currentModal = overlay;
     
     // Create modal
     const modal = document.createElement('div');
@@ -648,7 +661,10 @@
       closeBtn.style.background = 'transparent';
       closeBtn.style.color = 'rgba(255,255,255,0.6)';
     });
-    closeBtn.addEventListener('click', () => document.body.removeChild(overlay));
+    closeBtn.addEventListener('click', () => {
+      document.body.removeChild(overlay);
+      currentModal = null;
+    });
     
     modalHeader.appendChild(modalTitle);
     modalHeader.appendChild(closeBtn);
@@ -1286,6 +1302,7 @@
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) {
         document.body.removeChild(overlay);
+        currentModal = null;
       }
     });
     
