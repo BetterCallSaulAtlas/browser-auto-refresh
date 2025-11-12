@@ -1265,6 +1265,124 @@
     setTimeout(() => addInput.focus(), 100);
   }
 
+  // Toggle between mini and full mode
+  function toggleMiniMode() {
+    if (!refreshContainer) return;
+    
+    isMiniMode = !isMiniMode;
+    localStorage.setItem(STORAGE_KEY_MINI_MODE, String(isMiniMode));
+    
+    if (isMiniMode) {
+      // Enter mini mode
+      refreshContainer.style.width = 'auto';
+      refreshContainer.style.minWidth = '120px';
+      refreshContainer.style.padding = '8px 12px';
+      refreshContainer.style.borderRadius = '20px';
+      refreshContainer.style.cursor = 'pointer';
+      refreshContainer.setAttribute('aria-label', 'Auto refresh widget (collapsed)');
+      
+      // Hide full mode elements
+      if (uiElements.statusRow) uiElements.statusRow.style.display = 'none';
+      if (uiElements.refreshNowBtn) uiElements.refreshNowBtn.style.display = 'none';
+      if (uiElements.toggleBtn) uiElements.toggleBtn.style.display = 'none';
+      if (uiElements.intervalRow) uiElements.intervalRow.style.display = 'none';
+      if (uiElements.settingsBtn) uiElements.settingsBtn.style.display = 'none';
+      
+      // Update header for mini mode
+      if (uiElements.header) {
+        uiElements.header.style.marginBottom = '0';
+        uiElements.header.style.paddingBottom = '0';
+        uiElements.header.style.borderBottom = 'none';
+      }
+      
+      // Hide title text, keep only icon
+      if (uiElements.title) {
+        uiElements.title.textContent = '🔄';
+        uiElements.title.style.fontSize = '18px';
+      }
+      
+      // Change minimize button to expand
+      if (uiElements.minimizeBtn) {
+        uiElements.minimizeBtn.innerHTML = '+';
+        uiElements.minimizeBtn.title = 'Expand widget';
+      }
+      
+      // Create or show mini mode timer
+      if (!uiElements.miniModeTimer) {
+        uiElements.miniModeTimer = document.createElement('div');
+        uiElements.miniModeTimer.style.fontSize = '14px';
+        uiElements.miniModeTimer.style.fontWeight = '500';
+        uiElements.miniModeTimer.style.display = 'inline-flex';
+        uiElements.miniModeTimer.style.alignItems = 'center';
+        uiElements.miniModeTimer.style.gap = '6px';
+        uiElements.miniModeTimer.style.marginLeft = '8px';
+        uiElements.header.insertBefore(uiElements.miniModeTimer, uiElements.header.lastChild);
+      }
+      uiElements.miniModeTimer.style.display = 'inline-flex';
+      
+      // Make entire widget clickable to expand
+      refreshContainer.onclick = (e) => {
+        if (e.target !== uiElements.minimizeBtn && !e.target.closest('button')) {
+          toggleMiniMode();
+        }
+      };
+      
+      updateUI();
+      
+    } else {
+      // Enter full mode
+      refreshContainer.style.width = '300px';
+      refreshContainer.style.minWidth = 'auto';
+      refreshContainer.style.padding = '16px';
+      refreshContainer.style.borderRadius = '12px';
+      refreshContainer.style.cursor = 'grab';
+      refreshContainer.setAttribute('aria-label', 'Auto refresh widget (expanded)');
+      
+      // Show full mode elements
+      if (uiElements.statusRow) uiElements.statusRow.style.display = 'block';
+      if (uiElements.refreshNowBtn) uiElements.refreshNowBtn.style.display = 'block';
+      if (uiElements.toggleBtn) uiElements.toggleBtn.style.display = 'block';
+      if (uiElements.intervalRow) uiElements.intervalRow.style.display = 'flex';
+      if (uiElements.settingsBtn) uiElements.settingsBtn.style.display = 'block';
+      
+      // Restore header
+      if (uiElements.header) {
+        uiElements.header.style.marginBottom = '12px';
+        uiElements.header.style.paddingBottom = '12px';
+        uiElements.header.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
+      }
+      
+      // Restore title
+      if (uiElements.title) {
+        uiElements.title.textContent = '🔄 Auto Refresh';
+        uiElements.title.style.fontSize = '16px';
+      }
+      
+      // Change expand button back to minimize
+      if (uiElements.minimizeBtn) {
+        uiElements.minimizeBtn.innerHTML = '−';
+        uiElements.minimizeBtn.title = 'Minimize widget';
+      }
+      
+      // Hide mini mode timer
+      if (uiElements.miniModeTimer) {
+        uiElements.miniModeTimer.style.display = 'none';
+      }
+      
+      // Remove widget click handler
+      refreshContainer.onclick = null;
+      
+      updateUI();
+    }
+    
+    // Ensure widget stays in viewport after resize
+    const currentBottom = refreshContainer.style.bottom;
+    const currentLeft = refreshContainer.style.left;
+    const constrained = constrainToViewport(currentBottom, currentLeft, { duringDrag: false });
+    refreshContainer.style.bottom = constrained.bottom;
+    refreshContainer.style.left = constrained.left;
+  }
+
   function createUI() {
     const position = loadPosition();
     
