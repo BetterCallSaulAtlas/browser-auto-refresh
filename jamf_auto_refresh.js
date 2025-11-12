@@ -1294,10 +1294,17 @@
   }
 
   // Toggle between mini and full mode
-  function toggleMiniMode() {
+  // @param {boolean} [forceMode] - Optional: true for mini mode, false for full mode, undefined to toggle
+  function toggleMiniMode(forceMode) {
     if (!refreshContainer) return;
     
-    isMiniMode = !isMiniMode;
+    // If forceMode is provided, use it; otherwise toggle
+    if (forceMode !== undefined) {
+      isMiniMode = forceMode;
+    } else {
+      isMiniMode = !isMiniMode;
+    }
+    
     localStorage.setItem(STORAGE_KEY_MINI_MODE, String(isMiniMode));
     
     if (isMiniMode) {
@@ -1771,7 +1778,7 @@
     if (isMiniMode) {
       // Apply mini mode without animation on initial load
       refreshContainer.style.transition = 'none';
-      toggleMiniMode();
+      toggleMiniMode(true); // Force mini mode instead of toggling
       // Re-enable transitions after a frame
       requestAnimationFrame(() => {
         refreshContainer.style.transition = 'all 0.2s ease';
@@ -1780,6 +1787,8 @@
       // Add transition for future toggles
       refreshContainer.style.transition = 'all 0.2s ease';
     }
+    
+    console.log('[Jamf Auto-Refresh] Mini mode restored:', isMiniMode);
     
     // Final validation after widget is in DOM and has dimensions
     // This ensures the position is correct based on actual rendered size
