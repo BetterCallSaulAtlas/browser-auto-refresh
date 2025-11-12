@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Jamf Auto Refresh (Floating Window)
 // @namespace    Charlie Chimp
-// @version      2.1.1
+// @version      2.1.2
 // @author       BetterCallSaul <sherman@atlassian.com>
 // @description  Automatically refreshes the current page at a user-selectable interval with draggable floating window and countdown timer.
 // @match        *://*/*
@@ -410,18 +410,106 @@
 
   function loadPosition() {
     const saved = localStorage.getItem(STORAGE_KEY_POS);
+    let position = { bottom: '20px', left: '20px' };
+    
     if (saved) {
       try {
-        return JSON.parse(saved);
+        position = JSON.parse(saved);
       } catch (e) {
-        // Ignore parse errors
+        // Ignore parse errors, use default
       }
     }
-    return { bottom: '20px', left: '20px' };
+    
+    // Validate position against current viewport if widget exists
+    // This handles cases where browser was resized between sessions
+    if (refreshContainer) {
+      position = constrainToViewport(position.bottom, position.left, { 
+        maintainRelativePosition: true 
+      });
+    }
+    
+    return position;
   }
 
   function savePosition(bottom, left) {
     localStorage.setItem(STORAGE_KEY_POS, JSON.stringify({ bottom, left }));
+  }
+
+  function constrainToViewport(bottom, left, options = {}) {
+    const {
+      maintainRelativePosition = true,
+      duringDrag = false
+    } = options;
+    
+    const widget = refreshContainer;
+    if (!widget) return { bottom, left };
+    
+    const rect = widget.getBoundingClientRect();
+    const widgetWidth = rect.width;
+    const widgetHeight = rect.height;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    // Minimum visible padding (pixels that must remain visible)
+    const MIN_VISIBLE = 20;
+    
+    // Parse bottom and left values (handle "20px" string format)
+    const bottomPx = parseInt(String(bottom).replace('px', ''), 10) || 0;
+    const leftPx = parseInt(String(left).replace('px', ''), 10) || 0;
+    
+    // Calculate constraint boundaries
+    const maxBottom = viewportHeight - MIN_VISIBLE;
+    const minBottom = MIN_VISIBLE;
+    const maxLeft = viewportWidth - widgetWidth - MIN_VISIBLE;
+    const minLeft = MIN_VISIBLE;
+    
+    // During drag, just apply simple constraints
+    if (duringDrag) {
+      const constrainedBottom = Math.max(minBottom, Math.min(maxBottom, bottomPx));
+      const constrainedLeft = Math.max(minLeft, Math.min(maxLeft, leftPx));
+      
+      return {
+        bottom: `${Math.round(constrainedBottom)}px`,
+        left: `${Math.round(constrainedLeft)}px`
+      };
+    }
+    
+    // Check if position was previously at a constraint edge
+    // Allow 5px tolerance for edge detection
+    const EDGE_TOLERANCE = 5;
+    const wasAtLeftEdge = leftPx <= minLeft + EDGE_TOLERANCE;
+    const wasAtRightEdge = leftPx >= maxLeft - EDGE_TOLERANCE;
+    const wasAtTopEdge = bottomPx >= maxBottom - EDGE_TOLERANCE;
+    const wasAtBottomEdge = bottomPx <= minBottom + EDGE_TOLERANCE;
+    
+    // If maintaining relative position and widget isn't stuck at an edge
+    if (maintainRelativePosition && !wasAtLeftEdge && !wasAtRightEdge && !wasAtTopEdge && !wasAtBottomEdge) {
+      // Calculate current position as percentages of viewport
+      const bottomPercent = bottomPx / viewportHeight;
+      const leftPercent = leftPx / viewportWidth;
+      
+      // Apply percentages to current viewport size
+      let newBottom = bottomPercent * viewportHeight;
+      let newLeft = leftPercent * viewportWidth;
+      
+      // Apply constraints to ensure visibility
+      newBottom = Math.max(minBottom, Math.min(maxBottom, newBottom));
+      newLeft = Math.max(minLeft, Math.min(maxLeft, newLeft));
+      
+      return {
+        bottom: `${Math.round(newBottom)}px`,
+        left: `${Math.round(newLeft)}px`
+      };
+    }
+    
+    // Widget was at edge or simple constraint requested - just re-constrain
+    const constrainedBottom = Math.max(minBottom, Math.min(maxBottom, bottomPx));
+    const constrainedLeft = Math.max(minLeft, Math.min(maxLeft, leftPx));
+    
+    return {
+      bottom: `${Math.round(constrainedBottom)}px`,
+      left: `${Math.round(constrainedLeft)}px`
+    };
   }
 
   function startDragging(e) {
@@ -454,8 +542,11 @@
     const bottom = window.innerHeight - y - refreshContainer.offsetHeight;
     const left = x;
     
-    refreshContainer.style.bottom = `${Math.max(0, bottom)}px`;
-    refreshContainer.style.left = `${Math.max(0, Math.min(window.innerWidth - refreshContainer.offsetWidth, left))}px`;
+    // Apply viewport constraints during drag
+    const constrained = constrainToViewport(bottom, left, { duringDrag: true });
+    
+    refreshContainer.style.bottom = constrained.bottom;
+    refreshContainer.style.left = constrained.left;
   }
 
   function openDomainManager() {
@@ -1432,8 +1523,63 @@
     // Prevent text selection while dragging
     refreshContainer.addEventListener('dragstart', (e) => e.preventDefault());
     
+    // Handle window resize - reposition widget if it goes off-screen
+    if (!window.__jamfAutoRefreshResizeListener) {
+      window.__jamfAutoRefreshResizeListener = true;
+      
+      let resizeTimeout;
+      window.addEventListener('resize', () => {
+        // Debounce resize events
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(() => {
+          if (!refreshContainer) return;
+          
+          // Get current position
+          const currentBottom = refreshContainer.style.bottom;
+          const currentLeft = refreshContainer.style.left;
+          
+          // Validate against new viewport size (maintain relative position)
+          const constrained = constrainToViewport(currentBottom, currentLeft, {
+            maintainRelativePosition: true
+          });
+          
+          // Update if position changed
+          if (constrained.bottom !== currentBottom || constrained.left !== currentLeft) {
+            refreshContainer.style.bottom = constrained.bottom;
+            refreshContainer.style.left = constrained.left;
+            
+            // Save new position
+            savePosition(constrained.bottom, constrained.left);
+            
+            console.log('[Jamf Auto-Refresh] Widget repositioned after resize:', constrained);
+          }
+        }, 250); // 250ms debounce
+      });
+    }
+    
     // Add to page
     document.body.appendChild(refreshContainer);
+    
+    // Final validation after widget is in DOM and has dimensions
+    // This ensures the position is correct based on actual rendered size
+    setTimeout(() => {
+      if (!refreshContainer) return;
+      
+      const finalConstrained = constrainToViewport(
+        refreshContainer.style.bottom,
+        refreshContainer.style.left,
+        { maintainRelativePosition: false } // Don't scale on initial load, just constrain
+      );
+      
+      // Only update if position actually changed
+      if (finalConstrained.bottom !== refreshContainer.style.bottom || 
+          finalConstrained.left !== refreshContainer.style.left) {
+        refreshContainer.style.bottom = finalConstrained.bottom;
+        refreshContainer.style.left = finalConstrained.left;
+        savePosition(finalConstrained.bottom, finalConstrained.left);
+        console.log('[Jamf Auto-Refresh] Widget position adjusted after render:', finalConstrained);
+      }
+    }, 0);
     
     console.log('[Jamf Auto-Refresh] Floating window created');
   }
