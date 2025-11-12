@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Browser Auto Refresh (Floating Window)
 // @namespace    Charlie Chimp
-// @version      2.3.1
+// @version      2.3.2
 // @author       BetterCallSaul <sherman@atlassian.com>
 // @description  Universal auto-refresh script with draggable floating window, customizable intervals, and smart positioning. Works on any website with domain-based configuration.
 // @match        *://*/*
