@@ -1,6 +1,10 @@
-# Browser Auto Refresh
-
-A universal userscript that adds a draggable floating auto-refresh widget to any website, with customizable intervals, smart positioning, and domain-based configuration. Originally designed for Jamf Pro, now works on any site you configure.
+<div align="center">
+  <img src="screenshots/icon-256x256.png" alt="Browser Auto Refresh Icon" width="128" height="128">
+  
+  # Browser Auto Refresh
+  
+  A universal userscript that adds a draggable floating auto-refresh widget to any website, with customizable intervals, smart positioning, and domain-based configuration. Originally designed for Jamf Pro, now works on any site you configure.
+</div>
 
 > **📢 Repository Renamed**: This project was formerly known as `jamf-auto-refresh`. GitHub automatically redirects old URLs, so existing installations will continue to work and receive updates.
 

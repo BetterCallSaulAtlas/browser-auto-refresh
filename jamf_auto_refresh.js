@@ -5,6 +5,7 @@
 // @author       BetterCallSaul <sherman@atlassian.com>
 // @description  Universal auto-refresh script with draggable floating window, customizable intervals, and smart positioning. Works on any website with domain-based configuration.
 // @match        *://*/*
+// @icon         https://raw.githubusercontent.com/BetterCallSaulAtlas/browser-auto-refresh/main/screenshots/icon-128x128.png
 // @updateURL    https://raw.githubusercontent.com/BetterCallSaulAtlas/browser-auto-refresh/main/jamf_auto_refresh.js
 // @downloadURL  https://raw.githubusercontent.com/BetterCallSaulAtlas/browser-auto-refresh/main/jamf_auto_refresh.js
 // @supportURL   https://github.com/BetterCallSaulAtlas/browser-auto-refresh/issues

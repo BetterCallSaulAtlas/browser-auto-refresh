@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Green background circle -->
+  <circle cx="256" cy="256" r="250" fill="#22c55e"/>
+  
+  <!-- White clock face -->
+  <circle cx="256" cy="256" r="165" fill="white"/>
+  
+  <!-- Clock tick marks -->
+  <g stroke="#cbd5e1" stroke-linecap="round">
+    <!-- 12 o'clock -->
+    <line x1="256" y1="100" x2="256" y2="115" stroke-width="5"/>
+    <!-- 3 o'clock -->
+    <line x1="412" y1="256" x2="397" y2="256" stroke-width="5"/>
+    <!-- 6 o'clock -->
+    <line x1="256" y1="412" x2="256" y2="397" stroke-width="5"/>
+    <!-- 9 o'clock -->
+    <line x1="100" y1="256" x2="115" y2="256" stroke-width="5"/>
+    
+    <!-- Other hour marks (thinner) -->
+    <line x1="331" y1="113" x2="324" y2="122" stroke-width="3"/>
+    <line x1="399" y1="181" x2="390" y2="188" stroke-width="3"/>
+    <line x1="399" y1="331" x2="390" y2="324" stroke-width="3"/>
+    <line x1="331" y1="399" x2="324" y2="390" stroke-width="3"/>
+    <line x1="181" y1="399" x2="188" y2="390" stroke-width="3"/>
+    <line x1="113" y1="331" x2="122" y2="324" stroke-width="3"/>
+    <line x1="113" y1="181" x2="122" y2="188" stroke-width="3"/>
+    <line x1="181" y1="113" x2="188" y2="122" stroke-width="3"/>
+  </g>
+  
+  <!-- Clock hands -->
+  <!-- Hour hand (10 o'clock position) -->
+  <line x1="256" y1="256" x2="213" y2="210" stroke="#1e293b" stroke-width="8" stroke-linecap="round"/>
+  
+  <!-- Minute hand (2 o'clock position) -->
+  <line x1="256" y1="256" x2="326" y2="206" stroke="#1e293b" stroke-width="6" stroke-linecap="round"/>
+  
+  <!-- Center dot -->
+  <circle cx="256" cy="256" r="10" fill="#22c55e"/>
+  
+  <!-- White circular arrow in green ring -->
+  <!-- Arc goes almost full circle, with gap for arrowhead -->
+  <path d="M 468 243 A 212 212 0 1 0 468 269" 
+        fill="none" 
+        stroke="white" 
+        stroke-width="12" 
+        stroke-linecap="round"/>
+  
+  <!-- Arrowhead pointing DOWN (towards 6 o'clock) at 3 o'clock position -->
+  <!-- Triangle with apex pointing downward -->
+  <polygon points="468,256 455,243 481,243" fill="white"/>
+</svg>
