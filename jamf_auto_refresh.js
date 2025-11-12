@@ -1344,6 +1344,7 @@
         uiElements.miniModeTimer.style.alignItems = 'center';
         uiElements.miniModeTimer.style.gap = '6px';
         uiElements.miniModeTimer.style.marginLeft = '8px';
+        uiElements.miniModeTimer.style.marginRight = '12px';
         uiElements.header.insertBefore(uiElements.miniModeTimer, uiElements.header.lastChild);
       }
       uiElements.miniModeTimer.style.display = 'inline-flex';
