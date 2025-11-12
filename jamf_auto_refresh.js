@@ -335,6 +335,7 @@
   let isDragging = false;
   let dragOffsetX = 0;
   let dragOffsetY = 0;
+  let hasDragged = false;
 
   function formatTime(ms) {
     if (ms < 0) ms = 0;
@@ -544,6 +545,7 @@
 
   function startDragging(e) {
     isDragging = true;
+    hasDragged = false;
     const rect = refreshContainer.getBoundingClientRect();
     dragOffsetX = e.clientX - rect.left;
     dragOffsetY = e.clientY - rect.top;
@@ -564,6 +566,8 @@
 
   function drag(e) {
     if (!isDragging) return;
+    
+    hasDragged = true;
     
     const x = e.clientX - dragOffsetX;
     const y = e.clientY - dragOffsetY;
@@ -1302,7 +1306,7 @@
       refreshContainer.style.minWidth = '120px';
       refreshContainer.style.padding = '8px 12px';
       refreshContainer.style.borderRadius = '20px';
-      refreshContainer.style.cursor = 'pointer';
+      refreshContainer.style.cursor = 'grab';
       refreshContainer.setAttribute('aria-label', 'Auto refresh widget (collapsed)');
       
       // Hide full mode elements
@@ -1346,6 +1350,12 @@
       
       // Make entire widget clickable to expand
       refreshContainer.onclick = (e) => {
+        // Don't toggle if user just finished dragging
+        if (hasDragged) {
+          hasDragged = false;
+          return;
+        }
+        
         if (e.target !== uiElements.minimizeBtn && !e.target.closest('button')) {
           toggleMiniMode();
         }
