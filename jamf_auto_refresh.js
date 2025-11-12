@@ -263,6 +263,7 @@
   const STORAGE_KEY_COUNT = 'cc_auto_refresh_count:' + location.host;
   const STORAGE_KEY_LAST_REFRESH = 'cc_auto_refresh_last:' + location.host;
   const STORAGE_KEY_SESSION_START = 'cc_auto_refresh_session_start:' + location.host;
+  const STORAGE_KEY_MINI_MODE = 'cc_auto_refresh_mini_mode:' + location.host;
   const MIN_REFRESH_MS = 5 * 1000;          // 5 seconds minimum for safety
   const MAX_REFRESH_MS = 12 * 60 * 60 * 1000; // 12 hours max
   const INTERVAL_OPTIONS = [
@@ -299,6 +300,15 @@
   let nextRefreshAt = enabled ? Date.now() + refreshIntervalMs : null;
   let refreshContainer, statusEl, tickTimer;
   let statusMessage = null;
+  
+  // Mini mode state
+  let isMiniMode = (() => {
+    const raw = localStorage.getItem(STORAGE_KEY_MINI_MODE);
+    return raw === 'true';
+  })();
+  
+  // UI elements references for mini mode
+  let uiElements = {};
   
   // Load session data from localStorage
   let sessionRefreshCount = (() => {
@@ -397,6 +407,9 @@
 
     if (statusMessage) {
       statusEl.textContent = statusMessage;
+      if (uiElements.miniModeTimer && isMiniMode) {
+        uiElements.miniModeTimer.textContent = statusMessage;
+      }
       return;
     }
 
@@ -404,8 +417,19 @@
     if (enabled) {
       const remaining = Math.max(0, nextRefreshAt ? nextRefreshAt - Date.now() : 0);
       statusEl.textContent = `Next refresh: ${formatTime(remaining)}`;
+      
+      // Update mini mode timer if in mini mode
+      if (uiElements.miniModeTimer && isMiniMode) {
+        const pauseIcon = enabled ? '⏸' : '▶';
+        uiElements.miniModeTimer.textContent = `${pauseIcon} ${formatTime(remaining)}`;
+      }
     } else {
       statusEl.textContent = 'Auto-refresh is OFF';
+      
+      // Update mini mode timer if in mini mode
+      if (uiElements.miniModeTimer && isMiniMode) {
+        uiElements.miniModeTimer.textContent = '⏸ OFF';
+      }
     }
   }
 
@@ -1420,14 +1444,49 @@
     title.style.color = '#22c55e';
     title.textContent = '🔄 Auto Refresh';
     
+    const headerButtons = document.createElement('div');
+    headerButtons.style.display = 'flex';
+    headerButtons.style.alignItems = 'center';
+    headerButtons.style.gap = '8px';
+    
+    const minimizeBtn = document.createElement('button');
+    minimizeBtn.innerHTML = '−';
+    minimizeBtn.title = 'Minimize widget';
+    minimizeBtn.style.background = 'rgba(255,255,255,0.1)';
+    minimizeBtn.style.border = 'none';
+    minimizeBtn.style.borderRadius = '4px';
+    minimizeBtn.style.color = '#f8fafc';
+    minimizeBtn.style.cursor = 'pointer';
+    minimizeBtn.style.fontSize = '18px';
+    minimizeBtn.style.width = '24px';
+    minimizeBtn.style.height = '24px';
+    minimizeBtn.style.padding = '0';
+    minimizeBtn.style.display = 'flex';
+    minimizeBtn.style.alignItems = 'center';
+    minimizeBtn.style.justifyContent = 'center';
+    minimizeBtn.style.transition = 'all 0.2s ease';
+    minimizeBtn.addEventListener('mouseenter', () => {
+      minimizeBtn.style.background = 'rgba(255,255,255,0.2)';
+    });
+    minimizeBtn.addEventListener('mouseleave', () => {
+      minimizeBtn.style.background = 'rgba(255,255,255,0.1)';
+    });
+    minimizeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleMiniMode();
+    });
+    
     const dragHandle = document.createElement('div');
     dragHandle.style.color = 'rgba(255,255,255,0.4)';
     dragHandle.style.fontSize = '12px';
     dragHandle.style.cursor = 'grab';
     dragHandle.textContent = '⋮⋮';
     
+    headerButtons.appendChild(minimizeBtn);
+    headerButtons.appendChild(dragHandle);
+    
     header.appendChild(title);
-    header.appendChild(dragHandle);
+    header.appendChild(headerButtons);
     
     // Status display
     const statusRow = document.createElement('div');
@@ -1634,6 +1693,19 @@
     window.__ccRefreshLastTimestamp = lastRefreshEl;
     window.__ccRefreshSessionDuration = sessionDurationEl;
     
+    // Store UI element references for mini mode
+    uiElements = {
+      header,
+      title,
+      minimizeBtn,
+      statusRow,
+      refreshNowBtn,
+      toggleBtn,
+      intervalRow,
+      settingsBtn,
+      miniModeTimer: null
+    };
+    
     // Add drag functionality
     header.addEventListener('mousedown', startDragging);
     
@@ -1683,6 +1755,20 @@
     
     // Add to page
     document.body.appendChild(refreshContainer);
+    
+    // Restore mini mode state if it was previously minimized
+    if (isMiniMode) {
+      // Apply mini mode without animation on initial load
+      refreshContainer.style.transition = 'none';
+      toggleMiniMode();
+      // Re-enable transitions after a frame
+      requestAnimationFrame(() => {
+        refreshContainer.style.transition = 'all 0.2s ease';
+      });
+    } else {
+      // Add transition for future toggles
+      refreshContainer.style.transition = 'all 0.2s ease';
+    }
     
     // Final validation after widget is in DOM and has dimensions
     // This ensures the position is correct based on actual rendered size
