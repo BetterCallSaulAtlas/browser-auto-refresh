@@ -458,10 +458,15 @@
     const leftPx = parseInt(String(left).replace('px', ''), 10) || 0;
     
     // Calculate constraint boundaries
-    const maxBottom = viewportHeight - MIN_VISIBLE;
+    // Bottom edge: widget bottom must be at least MIN_VISIBLE from viewport bottom
     const minBottom = MIN_VISIBLE;
-    const maxLeft = viewportWidth - widgetWidth - MIN_VISIBLE;
+    // Top edge: widget top (bottom + height) must be at least MIN_VISIBLE from viewport top
+    const maxBottom = viewportHeight - widgetHeight - MIN_VISIBLE;
+    
+    // Left edge: widget left must be at least MIN_VISIBLE from viewport left
     const minLeft = MIN_VISIBLE;
+    // Right edge: widget right (left + width) must be at least MIN_VISIBLE from viewport right
+    const maxLeft = viewportWidth - widgetWidth - MIN_VISIBLE;
     
     // During drag, just apply simple constraints
     if (duringDrag) {
@@ -492,7 +497,7 @@
       let newBottom = bottomPercent * viewportHeight;
       let newLeft = leftPercent * viewportWidth;
       
-      // Apply constraints to ensure visibility
+      // Apply constraints to ensure ENTIRE widget is visible
       newBottom = Math.max(minBottom, Math.min(maxBottom, newBottom));
       newLeft = Math.max(minLeft, Math.min(maxLeft, newLeft));
       
