@@ -1,14 +1,14 @@
 // ==UserScript==
-// @name         Jamf Auto Refresh (Floating Window)
+// @name         Browser Auto Refresh (Floating Window)
 // @namespace    Charlie Chimp
-// @version      2.1.2
+// @version      2.2.0
 // @author       BetterCallSaul <sherman@atlassian.com>
-// @description  Automatically refreshes the current page at a user-selectable interval with draggable floating window and countdown timer.
+// @description  Universal auto-refresh script with draggable floating window, customizable intervals, and smart positioning. Works on any website with domain-based configuration.
 // @match        *://*/*
-// @updateURL    https://raw.githubusercontent.com/BetterCallSaulAtlas/jamf-auto-refresh/main/jamf_auto_refresh.js
-// @downloadURL  https://raw.githubusercontent.com/BetterCallSaulAtlas/jamf-auto-refresh/main/jamf_auto_refresh.js
-// @supportURL   https://github.com/BetterCallSaulAtlas/jamf-auto-refresh/issues
-// @homepageURL  https://github.com/BetterCallSaulAtlas/jamf-auto-refresh
+// @updateURL    https://raw.githubusercontent.com/BetterCallSaulAtlas/browser-auto-refresh/main/jamf_auto_refresh.js
+// @downloadURL  https://raw.githubusercontent.com/BetterCallSaulAtlas/browser-auto-refresh/main/jamf_auto_refresh.js
+// @supportURL   https://github.com/BetterCallSaulAtlas/browser-auto-refresh/issues
+// @homepageURL  https://github.com/BetterCallSaulAtlas/browser-auto-refresh
 // @grant        none
 // @run-at       document-end
 // ==/UserScript==

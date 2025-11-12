@@ -1,6 +1,8 @@
-# jamf-auto-refresh
+# Browser Auto Refresh
 
-A userscript that adds a draggable floating auto-refresh widget to Jamf Pro, with a user-selectable interval, countdown timer, and session tracking.
+A universal userscript that adds a draggable floating auto-refresh widget to any website, with customizable intervals, smart positioning, and domain-based configuration. Originally designed for Jamf Pro, now works on any site you configure.
+
+> **📢 Repository Renamed**: This project was formerly known as `jamf-auto-refresh`. GitHub automatically redirects old URLs, so existing installations will continue to work and receive updates.
 
 ## Features
 
@@ -25,8 +27,8 @@ A userscript that adds a draggable floating auto-refresh widget to Jamf Pro, wit
    - **Safari**: [Userscripts](https://apps.apple.com/app/userscripts/id1463298887)
 
 2. Install the script:
-   - **Direct Install** (Recommended): [Click here to install](https://raw.githubusercontent.com/BetterCallSaulAtlas/jamf-auto-refresh/main/jamf_auto_refresh.js)
-   - Or [download from GitHub Releases](https://github.com/BetterCallSaulAtlas/jamf-auto-refresh/releases/latest)
+   - **Direct Install** (Recommended): [Click here to install](https://raw.githubusercontent.com/BetterCallSaulAtlas/browser-auto-refresh/main/jamf_auto_refresh.js)
+   - Or [download from GitHub Releases](https://github.com/BetterCallSaulAtlas/browser-auto-refresh/releases/latest)
    - Or copy the contents of `jamf_auto_refresh.js` and create a new script in your userscript manager
 
 3. **Configure your Jamf Pro domains**:
@@ -226,7 +228,15 @@ The script automatically delays refresh when you're typing in forms to prevent d
 
 ## Version History
 
-### v2.1.2 (Latest)
+### v2.2.0 (Latest)
+- 🏷️ **Rebranding** - Renamed to "Browser Auto Refresh" (universal functionality)
+- 📦 **Repository Renamed** - `jamf-auto-refresh` → `browser-auto-refresh`
+- 🔗 **Updated URLs** - All script headers point to new repository location
+- ✅ **Backward Compatible** - Existing installations continue to work via GitHub redirects
+- 📝 **Enhanced Description** - Emphasizes universal usability across any website
+- 🔄 **Auto-update** - Users will automatically receive this update
+
+### v2.1.2
 - 🐛 **Viewport Constraints Fix** - Widget stays accessible during window resize
 - 🎯 **Smart Hybrid Positioning** - Maintains relative position for center widgets, preserves edge positioning
 - 🖱️ **Real-time Drag Constraints** - Cannot drag widget off-screen (20px minimum visible)
