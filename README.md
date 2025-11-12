@@ -226,7 +226,25 @@ The script automatically delays refresh when you're typing in forms to prevent d
 
 ## Version History
 
-### v2.1.0 (Latest)
+### v2.1.2 (Latest)
+- 🐛 **Viewport Constraints Fix** - Widget stays accessible during window resize
+- 🎯 **Smart Hybrid Positioning** - Maintains relative position for center widgets, preserves edge positioning
+- 🖱️ **Real-time Drag Constraints** - Cannot drag widget off-screen (20px minimum visible)
+- ✅ **Auto-correction** - Invalid saved positions fixed on load
+- ⚡ **Smooth Performance** - Debounced resize handler (250ms)
+- 📐 **Full Visibility** - Entire widget (width + height) always visible
+
+### v2.1.1
+- 🐛 **Script Duplication Fix** - Prevents multiple instances during SPA navigation
+- 🛡️ **Session-Persistent Flags** - Window-level protection flags prevent re-execution
+- 🔄 **History API Protection** - Prevents multiple wrapping of pushState/replaceState
+- 🖱️ **Drag Listener Protection** - Prevents accumulating document-level event listeners
+- ⚡ **Performance Improvements** - Reduced memory usage and event listener overhead
+
+<details>
+<summary><strong>📦 Previous Versions</strong> (click to expand)</summary>
+
+### v2.1.0
 - 🎯 **Path-Based URL Matching** - Enable only on specific pages
 - 🌐 **Glob Pattern Support** - Use `*`, `**`, `/computers*`, `*/devices/*`
 - 🔧 **Regex Pattern Support** - Use `regex:^/computers/.*\.html$` for complex matching
@@ -285,3 +303,5 @@ The script automatically delays refresh when you're typing in forms to prevent d
 - ✨ Added "Refresh Now" button for manual page refresh
 - ✨ Added last refresh timestamp with live updates
 - ✨ Added session refresh counter
+
+</details>
